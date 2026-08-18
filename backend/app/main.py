@@ -1,5 +1,7 @@
 from fastapi import FastAPI
-from api.routes.users import router as users_router
+from api.routes.session import router as session_router
+from api.routes.profile import router as profile_router
+from api.routes.nearby import router as nearby_router
 
 app=FastAPI(
     title="Nearly API",
@@ -7,7 +9,9 @@ app=FastAPI(
     version="1.0.0"
 )
 
-app.include_router(users_router)
+app.include_router(session_router)
+app.include_router(profile_router)
+app.include_router(nearby_router)
 
 @app.get("/health")
 async def health():
