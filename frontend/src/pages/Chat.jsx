@@ -1,14 +1,30 @@
 import { useEffect, useRef, useState } from "react";
-import { ArrowRight, Check, MoreHorizontal, RotateCw, Send, Shield, Sparkles, X } from "lucide-react";
+import { ArrowRight, MoreHorizontal, RotateCw, Send, Shield, Sparkles } from "lucide-react";
 import AnonymousAvatar from "../components/AnonymousAvatar";
 import GhostMark from "../components/GhostMark";
 import { anonymousPeople, interests as allInterests, starterMessages } from "../data/mockData";
+
+const messageTimeFormatter = new Intl.DateTimeFormat(undefined, {
+    hour: "numeric",
+    minute: "2-digit",
+});
+
+function createChatMessage({ idPrefix, sender, text }) {
+    const createdAt = new Date();
+
+    return {
+        id: `${idPrefix}-${createdAt.getTime()}`,
+        sender,
+        text,
+        createdAt: createdAt.toISOString(),
+    };
+}
 
 function Chat() {
     const [chatState, setChatState] = useState("setup");
     const [selectedInterests, setSelectedInterests] = useState([]);
     const [match, setMatch] = useState(anonymousPeople[0]);
-    const [messages, setMessages] = useState(starterMessages);
+    const [messages, setMessages] = useState([]);
     const [message, setMessage] = useState("");
     const [showMenu, setShowMenu] = useState(false);
     const [isTyping, setIsTyping] = useState(false);
@@ -22,7 +38,11 @@ function Chat() {
         const timer = window.setTimeout(() => {
             const next = anonymousPeople[Math.floor(Math.random() * anonymousPeople.length)];
             setMatch(next);
-            setMessages([{ ...starterMessages[0], id: `${next.id}-${Date.now()}` }]);
+            setMessages([createChatMessage({
+                idPrefix: next.id,
+                sender: starterMessages[0].sender,
+                text: starterMessages[0].text,
+            })]);
             setChatState("chatting");
         }, 3000);
         return () => window.clearTimeout(timer);
@@ -55,12 +75,16 @@ function Chat() {
         event.preventDefault();
         const trimmed = message.trim();
         if (!trimmed) return;
-        setMessages((current) => [...current, { id: `sent-${Date.now()}`, sender: "me", text: trimmed, time: "10:24 PM" }]);
+        setMessages((current) => [...current, createChatMessage({ idPrefix: "sent", sender: "me", text: trimmed })]);
         setMessage("");
         setIsTyping(true);
         replyTimerRef.current = window.setTimeout(() => {
             setIsTyping(false);
-            setMessages((current) => [...current, { id: `reply-${Date.now()}`, sender: "them", text: "Nice! I'm into that too.", time: "10:25 PM" }]);
+            setMessages((current) => [...current, createChatMessage({
+                idPrefix: "reply",
+                sender: "them",
+                text: "Nice! I'm into that too.",
+            })]);
         }, 1400);
     }
 
@@ -159,6 +183,16 @@ function Chat() {
     /* ============ CHATTING ============ */
     return (
         <section className="conversation">
+            <div className="conversation-wallpaper" aria-hidden="true">
+                <span className="wallpaper-orbit orbit-a" />
+                <span className="wallpaper-orbit orbit-b" />
+                <span className="wallpaper-clue clue-a">?</span>
+                <span className="wallpaper-clue clue-b">?</span>
+                <GhostMark className="wallpaper-ghost ghost-a" />
+                <GhostMark className="wallpaper-ghost ghost-b" />
+                <GhostMark className="wallpaper-ghost ghost-c" />
+            </div>
+
             <header className="conv-top">
                 <div className="conv-person">
                     <AnonymousAvatar type={match.avatar} size="sm" online />
@@ -198,7 +232,11 @@ function Chat() {
                         {item.sender === "them" && <AnonymousAvatar type={match.avatar} size="sm" />}
                         <div className="bubble">
                             {item.text}
-                            <small>{item.time}</small>
+                            <small>
+                                <time dateTime={item.createdAt}>
+                                    {messageTimeFormatter.format(new Date(item.createdAt))}
+                                </time>
+                            </small>
                         </div>
                     </div>
                 ))}
@@ -214,19 +252,21 @@ function Chat() {
             </div>
 
             <form className="composer" onSubmit={sendMessage}>
-                <div className="composer-inner">
+                <div className="composer-row">
                     <button className="next-btn" type="button" onClick={nextMatch} aria-label="Next match">
                         <RotateCw size={13} strokeWidth={1.8} /><span>Next match</span>
                     </button>
-                    <input
-                        value={message}
-                        onChange={(e) => setMessage(e.target.value)}
-                        placeholder="Say hello..."
-                        aria-label="Message"
-                    />
-                    <button className="send-btn" type="submit" aria-label="Send">
-                        <Send size={14} />
-                    </button>
+                    <div className="composer-inner">
+                        <input
+                            value={message}
+                            onChange={(e) => setMessage(e.target.value)}
+                            placeholder="Say hello..."
+                            aria-label="Message"
+                        />
+                        <button className="send-btn" type="submit" aria-label="Send">
+                            <Send size={14} />
+                        </button>
+                    </div>
                 </div>
             </form>
         </section>
