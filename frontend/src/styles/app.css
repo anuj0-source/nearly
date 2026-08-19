@@ -898,7 +898,8 @@ a { color: inherit; text-decoration: none; }
     border-radius: 50%;
     top: 50%;
     left: 50%;
-    transform: translate(-50%, -50%);
+    translate: -50% -50%;
+    transform-origin: center;
 }
 .home-visual .ring.r1 {
     width: 140px; height: 140px;
@@ -944,7 +945,7 @@ a { color: inherit; text-decoration: none; }
     border-radius: 50%;
     border: 1.5px solid var(--warm);
     opacity: 0.45;
-    animation: haloBreath 4s ease-in-out infinite 1.3s;
+    animation: homeHaloBreath 4s ease-in-out infinite 1.3s;
 }
 
 .home-headline {
@@ -1040,12 +1041,11 @@ a { color: inherit; text-decoration: none; }
 }
 .home-visual .r1 {
     animation: ringPulse 4s ease-out infinite;
-    transform-origin: center;
 }
 
 /* Subtle accent ring around the core — gentler than before */
 .home-visual .core::after {
-    animation: haloBreath 4s ease-in-out infinite 1.3s;
+    animation: homeHaloBreath 4s ease-in-out infinite 1.3s;
 }
 
 /* Reduced motion — silence everything */
@@ -1074,9 +1074,9 @@ a { color: inherit; text-decoration: none; }
     100% { width: 200px; height: 200px; opacity: 0; border-width: 1px; }
 }
 
-@keyframes haloBreath {
-    0%, 100% { opacity: 0.3; }
-    50%      { opacity: 0.6; }
+@keyframes homeHaloBreath {
+    0%, 100% { opacity: 0.3; transform: scale(1); }
+    50%      { opacity: 0.6; transform: scale(1.04); }
 }
 
 /* =============================================================
@@ -1111,7 +1111,8 @@ a { color: inherit; text-decoration: none; }
     border-radius: 50%;
     top: 50%;
     left: 50%;
-    transform: translate(-50%, -50%);
+    translate: -50% -50%;
+    transform-origin: center;
 }
 .chat-setup-visual .ring.r1 {
     width: 60%; height: 60%;
@@ -1385,7 +1386,8 @@ a { color: inherit; text-decoration: none; }
     border-radius: 50%;
     top: 50%;
     left: 50%;
-    transform: translate(-50%, -50%);
+    translate: -50% -50%;
+    transform-origin: center;
 }
 /* Inner ripple — quick expansion outward from the core, accent violet */
 .match-visual .ring.r1 {
@@ -1404,7 +1406,7 @@ a { color: inherit; text-decoration: none; }
 }
 /* Dashed outer ring — slow continuous rotation, cool tone */
 .match-visual .ring.r3 {
-    inset: 0; transform: none; width: 100%; height: 100%;
+    width: 100%; height: 100%;
     border: 1.5px dashed var(--cool);
     opacity: 0.85;
     box-shadow: 0 0 14px -4px color-mix(in srgb, var(--cool) 40%, transparent);
@@ -2707,13 +2709,13 @@ a { color: inherit; text-decoration: none; }
    ANIMATIONS
    ============================================================= */
 @keyframes slowRotate {
-    from { transform: translate(-50%, -50%) rotate(0deg); }
-    to   { transform: translate(-50%, -50%) rotate(360deg); }
+    from { transform: rotate(0deg); }
+    to   { transform: rotate(360deg); }
 }
 
 @keyframes setupRingBreathe {
-    0%, 100% { opacity: 0.45; transform: translate(-50%, -50%) scale(0.98); }
-    50%      { opacity: 0.72; transform: translate(-50%, -50%) scale(1.03); }
+    0%, 100% { opacity: 0.45; transform: scale(0.98); }
+    50%      { opacity: 0.72; transform: scale(1.03); }
 }
 
 @keyframes setupCoreFloat {
@@ -2733,15 +2735,15 @@ a { color: inherit; text-decoration: none; }
 
 /* Inner ripple — quicker, expands outward and fades */
 @keyframes matchPulse {
-    0%   { opacity: 0.7; transform: translate(-50%, -50%) scale(0.6); }
-    80%  { opacity: 0;   transform: translate(-50%, -50%) scale(1.15); }
-    100% { opacity: 0;   transform: translate(-50%, -50%) scale(1.15); }
+    0%   { opacity: 0.7; transform: scale(0.6); }
+    80%  { opacity: 0;   transform: scale(1.15); }
+    100% { opacity: 0;   transform: scale(1.15); }
 }
 
 @keyframes matchPulseCentered {
-    0%   { opacity: 0.72; transform: translate3d(-50%, -50%, 0) scale(0.62); }
-    80%  { opacity: 0;    transform: translate3d(-50%, -50%, 0) scale(1.12); }
-    100% { opacity: 0;    transform: translate3d(-50%, -50%, 0) scale(1.12); }
+    0%   { opacity: 0.72; transform: scale(0.62); }
+    80%  { opacity: 0;    transform: scale(1.12); }
+    100% { opacity: 0;    transform: scale(1.12); }
 }
 
 @keyframes pulse {
@@ -2757,8 +2759,8 @@ a { color: inherit; text-decoration: none; }
 
 /* Outermost halo gently breathes */
 @keyframes haloBreath {
-    0%, 100% { opacity: 0.14; transform: translate(-50%, -50%) scale(1); }
-    50%      { opacity: 0.28; transform: translate(-50%, -50%) scale(1.04); }
+    0%, 100% { opacity: 0.14; transform: scale(1); }
+    50%      { opacity: 0.28; transform: scale(1.04); }
 }
 
 /* Core floats up and down slowly */
