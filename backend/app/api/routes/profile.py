@@ -1,4 +1,4 @@
-from fastapi import APIRouter,Response,Cookie,HTTPException
+from fastapi import APIRouter,Cookie,HTTPException
 from schemas.users import UserEdit
 from core.session import sessions
 
@@ -21,10 +21,6 @@ async def update_profile(data:UserEdit,session_id:str | None = Cookie(default=No
 
         if data.avatar is not None:
             user.avatar = data.avatar
-
-        if data.interests is not None:
-            for interest in data.interests:
-                user.interests.append(interest)
 
         if data.language is not None:
             user.language = data.language

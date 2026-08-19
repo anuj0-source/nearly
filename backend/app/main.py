@@ -2,11 +2,20 @@ from fastapi import FastAPI
 from api.routes.session import router as session_router
 from api.routes.profile import router as profile_router
 from api.routes.nearby import router as nearby_router
+from fastapi.middleware.cors import CORSMiddleware
 
 app=FastAPI(
     title="Nearly API",
     description="Anonymous nearby chat platform",
     version="1.0.0"
+)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:5173"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 app.include_router(session_router)

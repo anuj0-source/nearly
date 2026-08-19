@@ -29,7 +29,6 @@ export function getProfile() {
     return Promise.resolve({
         name: "Anonymous Fox",
         avatar: "fox",
-        interests: ["Gaming", "Music", "Coding"],
         status: "Available for chat",
     });
 }

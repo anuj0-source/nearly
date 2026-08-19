@@ -51,11 +51,6 @@ function Nearby() {
                         </header>
 
                         <footer className="nearby-foot">
-                            <ul className="nearby-tags">
-                                {person.interests.map((interest) => (
-                                    <li className="nearby-tag" key={interest}>{interest}</li>
-                                ))}
-                            </ul>
                             <span className="nearby-dist">
                                 <MapPin size={10} strokeWidth={2} />
                                 {person.distance}

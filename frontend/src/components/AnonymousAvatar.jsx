@@ -1,3 +1,16 @@
+const knownTypes = new Set(["fox", "panda", "owl", "cat", "ghost"]);
+
+function isAvatarUrl(value) {
+    if (typeof value !== "string") return false;
+
+    try {
+        const url = new URL(value);
+        return url.protocol === "http:" || url.protocol === "https:";
+    } catch {
+        return false;
+    }
+}
+
 /* All marks: hand-drawn style with simple eyes + smile for personality. */
 function AvatarMark({ type }) {
     if (type === "fox") return (
@@ -69,12 +82,21 @@ function AvatarMark({ type }) {
 
 function AnonymousAvatar({ type = "ghost", size = "md", online = false }) {
     const cls = { sm: "av av-sm", md: "av av-md", lg: "av av-lg", xl: "av av-xl" }[size] || "av av-md";
+    const hasImageUrl = isAvatarUrl(type);
+    const useEmoji = !hasImageUrl && !knownTypes.has(type);
+    const avatarClass = hasImageUrl ? "av-image" : `av-${type}`;
 
     return (
-        <span className={`${cls} av-${type}`} aria-label={`Anonymous ${type}`}>
-            <svg viewBox="0 0 32 32" fill="none" aria-hidden="true" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                <AvatarMark type={type} />
-            </svg>
+        <span className={`${cls} ${avatarClass}`} aria-label="Anonymous avatar">
+            {hasImageUrl ? (
+                <img src={type} alt="" />
+            ) : useEmoji ? (
+                <span className="av-emoji" aria-hidden="true">{type}</span>
+            ) : (
+                <svg viewBox="0 0 32 32" fill="none" aria-hidden="true" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                    <AvatarMark type={type} />
+                </svg>
+            )}
             {online && <span className="pip" />}
         </span>
     );

@@ -1,18 +1,3 @@
-export const interests = [
-    { id: "gaming", label: "Gaming", icon: "🎮" },
-    { id: "coding", label: "Coding", icon: "</>" },
-    { id: "music", label: "Music", icon: "♪" },
-    { id: "movies", label: "Movies", icon: "🎬" },
-    { id: "anime", label: "Anime", icon: "✦" },
-    { id: "memes", label: "Memes", icon: "😏" },
-    { id: "sports", label: "Sports", icon: "🏀" },
-    { id: "art", label: "Art", icon: "�" },
-    { id: "travel", label: "Travel", icon: "✈" },
-    { id: "books", label: "Books", icon: "📖" },
-    { id: "fitness", label: "Fitness", icon: "⚡" },
-    { id: "technology", label: "Technology", icon: "◍" },
-];
-
 export const anonymousPeople = [
     {
         id: "fox",
@@ -21,7 +6,6 @@ export const anonymousPeople = [
         distance: "800m away",
         status: "online",
         description: "Looking for someone to talk to",
-        interests: ["Gaming", "Music"],
     },
     {
         id: "panda",
@@ -30,7 +14,6 @@ export const anonymousPeople = [
         distance: "1.2 km away",
         status: "online",
         description: "Probably thinking about food",
-        interests: ["Coding", "Movies"],
     },
     {
         id: "ghost",
@@ -39,7 +22,6 @@ export const anonymousPeople = [
         distance: "1.8 km away",
         status: "away",
         description: "Quietly looking around campus",
-        interests: ["Anime", "Books"],
     },
     {
         id: "owl",
@@ -48,7 +30,6 @@ export const anonymousPeople = [
         distance: "2.1 km away",
         status: "online",
         description: "Late-night conversation enthusiast",
-        interests: ["Art", "Technology"],
     },
 ];
 

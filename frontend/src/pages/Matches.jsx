@@ -34,12 +34,6 @@ function Matches() {
                                 <span className="match-name">{person.name}</span>
                                 <time className="match-time">{person.time}</time>
                             </header>
-
-                            <ul className="match-tags">
-                                {person.interests.map((interest) => (
-                                    <li className="match-tag" key={interest}>{interest}</li>
-                                ))}
-                            </ul>
                         </div>
                     </article>
                 ))}

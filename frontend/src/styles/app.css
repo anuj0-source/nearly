@@ -2295,12 +2295,18 @@ a { color: inherit; text-decoration: none; }
 .av-lg { width: 60px; height: 60px; }
 .av-xl { width: 88px; height: 88px; }
 .av svg { width: 62%; height: 62%; }
+.av-image img { width: 100%; height: 100%; object-fit: cover; display: block; }
 
 .av-fox   { color: var(--warm); background: rgba(201, 160, 122, 0.10); }
 .av-panda { color: var(--cool); background: rgba(111, 143, 168, 0.10); }
 .av-ghost { color: var(--ink-2); background: var(--surface-2); }
 .av-owl   { color: #8AB099; background: rgba(138, 176, 153, 0.10); }
 .av-cat   { color: #B5869F; background: rgba(181, 134, 159, 0.10); }
+.av-emoji {
+    font-size: 0.9em;
+    line-height: 1;
+    transform: translateY(0.02em);
+}
 
 .av .pip {
     position: absolute;
@@ -2313,6 +2319,115 @@ a { color: inherit; text-decoration: none; }
     border: 2px solid var(--paper);
 }
 .av-sm .pip { width: 7px; height: 7px; border-width: 1.5px; }
+
+.conversation-skeleton .conv-top,
+.conversation-skeleton .composer {
+    pointer-events: none;
+}
+.messages-skeleton {
+    display: grid;
+    gap: 14px;
+}
+.skeleton-avatar-chat {
+    width: 42px;
+    height: 42px;
+    border-radius: 50%;
+}
+.skeleton-stack {
+    display: grid;
+    gap: 8px;
+    flex: 1;
+}
+.skeleton-chat-name {
+    width: 150px;
+    height: 16px;
+    border-radius: 999px;
+}
+.skeleton-chat-meta {
+    width: 86px;
+    height: 11px;
+    border-radius: 999px;
+}
+.skeleton-menu,
+.skeleton-status,
+.skeleton-notice-mark,
+.skeleton-next,
+.skeleton-send {
+    position: relative;
+    overflow: hidden;
+    background: color-mix(in srgb, var(--surface) 70%, transparent);
+}
+.skeleton-menu {
+    width: 28px;
+    height: 28px;
+    border-radius: 999px;
+}
+.skeleton-notice-mark {
+    width: 38px;
+    height: 38px;
+    border-radius: 50%;
+}
+.skeleton-notice-title {
+    width: min(260px, 52vw);
+    height: 14px;
+    border-radius: 999px;
+}
+.skeleton-status {
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+}
+.skeleton-bubble {
+    position: relative;
+    overflow: hidden;
+    min-height: 52px;
+    border-radius: 18px;
+    background: color-mix(in srgb, var(--surface) 72%, transparent);
+}
+.skeleton-bubble::after,
+.skeleton-menu::after,
+.skeleton-status::after,
+.skeleton-notice-mark::after,
+.skeleton-next::after,
+.skeleton-send::after,
+.skeleton-input::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    transform: translateX(-100%);
+    background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--paper) 58%, transparent), transparent);
+    animation: skeletonShimmer 1.25s infinite;
+}
+.skeleton-bubble-incoming {
+    width: min(68%, 440px);
+}
+.skeleton-bubble-outgoing {
+    width: min(58%, 360px);
+    margin-left: auto;
+}
+.skeleton-bubble.short {
+    width: min(38%, 220px);
+}
+.skeleton-next {
+    width: 104px;
+    height: 40px;
+    border-radius: 12px;
+}
+.skeleton-input {
+    flex: 1;
+    height: 44px;
+    border-radius: 16px;
+    position: relative;
+    overflow: hidden;
+    background: color-mix(in srgb, var(--surface) 72%, transparent);
+}
+.skeleton-send {
+    width: 44px;
+    height: 44px;
+    border-radius: 12px;
+    position: relative;
+    overflow: hidden;
+}
 
 /* =============================================================
    PAGE SHELL (matches / nearby / profile / invite)
@@ -2848,6 +2963,88 @@ a { color: inherit; text-decoration: none; }
 .signin-copy { flex: 1; }
 .signin-cta b { font-weight: 600; display: block; font-size: 13.5px; }
 .signin-cta small { display: block; margin-top: 2px; color: var(--muted); font-size: 12px; }
+
+.profile-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 14px;
+}
+.meta-pill {
+    display: inline-flex;
+    align-items: center;
+    min-height: 28px;
+    padding: 0 10px;
+    border-radius: 999px;
+    border: 1px solid var(--line);
+    background: color-mix(in srgb, var(--surface) 78%, transparent);
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 500;
+}
+.tag.empty {
+    opacity: 0.72;
+    font-style: italic;
+}
+
+.profile-skeleton .page-head aside,
+.profile-skeleton .skeleton-line,
+.profile-skeleton .skeleton-avatar,
+.profile-skeleton .skeleton-chip,
+.profile-skeleton .skeleton-tag,
+.profile-skeleton .skeleton-button,
+.profile-skeleton .skeleton-chevron,
+.profile-skeleton .skeleton-toggle,
+.profile-skeleton .skeleton-shield {
+    position: relative;
+    overflow: hidden;
+    background: color-mix(in srgb, var(--surface) 72%, transparent);
+    border-color: color-mix(in srgb, var(--line) 88%, transparent);
+}
+.profile-skeleton .skeleton-line::after,
+.profile-skeleton .skeleton-avatar::after,
+.profile-skeleton .skeleton-chip::after,
+.profile-skeleton .skeleton-tag::after,
+.profile-skeleton .skeleton-button::after,
+.profile-skeleton .skeleton-chevron::after,
+.profile-skeleton .skeleton-toggle::after,
+.profile-skeleton .skeleton-shield::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    transform: translateX(-100%);
+    background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--paper) 58%, transparent), transparent);
+    animation: skeletonShimmer 1.25s infinite;
+}
+.skeleton-line {
+    border-radius: 999px;
+}
+.skeleton-eyebrow { width: 110px; height: 11px; }
+.skeleton-title { width: min(240px, 60vw); height: 28px; margin-top: 10px; }
+.skeleton-chip { width: 64px; height: 18px; border-radius: 999px; }
+.skeleton-avatar { width: 72px; height: 72px; border-radius: 50%; }
+.skeleton-stack { flex: 1; display: grid; gap: 10px; }
+.skeleton-name { width: 180px; height: 18px; }
+.skeleton-sub { width: 140px; height: 12px; }
+.skeleton-tags { display: flex; flex-wrap: wrap; gap: 6px; width: 100%; }
+.skeleton-tag { width: 88px; height: 28px; border-radius: 999px; }
+.skeleton-button { width: 100%; height: 40px; border-radius: 12px; margin-top: 18px; }
+.skeleton-set-row { pointer-events: none; }
+.skeleton-set-title { width: 130px; height: 14px; }
+.skeleton-set-desc { width: min(280px, 48vw); height: 10px; margin-top: 8px; }
+.skeleton-chevron { width: 16px; height: 16px; border-radius: 999px; flex-shrink: 0; }
+.skeleton-toggle { width: 42px; height: 24px; border-radius: 999px; flex-shrink: 0; }
+.skeleton-signin { pointer-events: none; }
+.skeleton-shield { width: 15px; height: 15px; border-radius: 4px; flex-shrink: 0; }
+.profile-error {
+    margin: -10px 0 18px;
+    color: var(--danger, #d14b4b);
+    font-size: 13px;
+}
+
+@keyframes skeletonShimmer {
+    100% { transform: translateX(100%); }
+}
 
 /* =============================================================
    DARK MODE — quiet, product-grade surfaces
