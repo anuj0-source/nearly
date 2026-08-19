@@ -1,39 +1,40 @@
 import { NavLink } from "react-router-dom";
-import { Archive, MapPin, MessageCircle, Send, UserRound } from "lucide-react";
+import { Gift, Heart, MapPin, MessageCircle, User } from "lucide-react";
 import ThemeToggle from "./ThemeToggle";
+import GhostMark from "./GhostMark";
 
 const items = [
-    { id: "01", label: "Chat", path: "/chat", Icon: MessageCircle },
-    { id: "02", label: "Matches", path: "/matches", Icon: Archive },
-    { id: "03", label: "Nearby", path: "/nearby", Icon: MapPin },
-    { id: "04", label: "Profile", path: "/profile", Icon: UserRound },
-    { id: "05", label: "Invite", path: "/invite", Icon: Send },
+    { id: "chat", label: "Chat", path: "/chat", Icon: MessageCircle },
+    { id: "matches", label: "Matches", path: "/matches", Icon: Heart },
+    { id: "nearby", label: "Nearby", path: "/nearby", Icon: MapPin },
+    { id: "profile", label: "Profile", path: "/profile", Icon: User },
+    { id: "invite", label: "Invite", path: "/invite", Icon: Gift },
 ];
 
 function Sidebar({ darkMode, onToggleTheme }) {
     return (
-        <aside className="sb">
+        <aside className="sb" aria-label="Primary">
             <NavLink to="/" className="sb-brand" aria-label="Nearly home">
-                Nearly<span className="dot" />
+                <GhostMark className="brand-logo-mark" />
             </NavLink>
-            <div className="sb-tag">Anonymous · nearby</div>
 
-            <nav className="sb-nav" aria-label="Main">
+            <nav className="sb-nav">
                 {items.map(({ id, label, path, Icon }) => (
                     <NavLink
                         key={id}
                         to={path}
                         className={({ isActive }) => `sb-item ${isActive ? "active" : ""}`}
+                        aria-label={label}
+                        title={label}
                     >
-                        <span className="sb-item-label"><Icon size={15} strokeWidth={1.75} />{label}</span>
-                        <span className="ix">{id}</span>
+                        <Icon size={18} strokeWidth={1.6} />
+                        <span className="sb-label">{label}</span>
                     </NavLink>
                 ))}
             </nav>
 
             <div className="sb-foot">
-                <small>Anonymous mode is on.<br />Your real identity never leaves this device.</small>
-                <ThemeToggle darkMode={darkMode} onToggle={onToggleTheme} />
+                <ThemeToggle darkMode={darkMode} onToggle={onToggleTheme} icon />
             </div>
         </aside>
     );

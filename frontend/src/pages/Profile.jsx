@@ -14,16 +14,16 @@ function Profile({ darkMode, onToggleTheme }) {
         <div className="page">
             <header className="page-head">
                 <div>
-                    <p className="label">Your secret identity</p>
-                    <h1>A little <em>about</em> you.</h1>
-                    <p>This is the version of you that exists inside Nearly. It can stay delightfully mysterious.</p>
+                    <p className="eyebrow">Your secret identity</p>
+                    <h1 className="h1">Anonymous Fox</h1>
                 </div>
+                <aside>Active</aside>
             </header>
 
             <div className="profile-grid">
                 <section className="id-card">
                     <div className="id-row">
-                        <AnonymousAvatar type="fox" size="xl" online />
+                        <AnonymousAvatar type="fox" size="lg" online />
                         <div>
                             <h2>Anonymous Fox</h2>
                             <p className="sub"><span className="dot" /> Available for chat</p>
@@ -31,14 +31,14 @@ function Profile({ darkMode, onToggleTheme }) {
                     </div>
 
                     <div className="id-tags">
-                        <span className="label">Your clues</span>
+                        <span className="eyebrow">Interests</span>
                         {["Gaming", "Music", "Coding", "Anime"].map((item) => (
-                            <span className="tag" key={item}>{item}</span>
+                            <span className="tag" key={item}><span className="dot" />{item}</span>
                         ))}
                     </div>
 
                     <button className="btn btn-ghost avatar-change" type="button">
-                        <SlidersHorizontal size={13} /> Change avatar
+                        <SlidersHorizontal size={13} strokeWidth={1.75} /> Change avatar
                     </button>
                 </section>
 
@@ -47,7 +47,7 @@ function Profile({ darkMode, onToggleTheme }) {
                         {settings.map(({ Icon, title, desc }) => (
                             <button className="set-row" type="button" key={title}>
                                 <div>
-                                    <b><Icon size={13} /> {title}</b>
+                                    <b><Icon size={14} strokeWidth={1.75} /> {title}</b>
                                     <small>{desc}</small>
                                 </div>
                                 <ChevronRight size={15} color="var(--faint)" />
@@ -59,12 +59,12 @@ function Profile({ darkMode, onToggleTheme }) {
                                 <b>Theme</b>
                                 <small>Make Nearly feel like your kind of night</small>
                             </div>
-                            <ThemeToggle darkMode={darkMode} onToggle={onToggleTheme} compact />
+                            <ThemeToggle darkMode={darkMode} onToggle={onToggleTheme} icon />
                         </div>
                     </div>
 
                     <button className="signin-cta" type="button">
-                        <Shield size={15} />
+                        <Shield size={15} strokeWidth={1.75} />
                         <div className="signin-copy">
                             <b>Not signed in</b>
                             <small>Sign in with Google to keep this identity across devices.</small>

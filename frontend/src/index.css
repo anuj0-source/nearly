@@ -1,4 +1,3 @@
-html { background: #0B0C10; }
+/* Base resets — do not hardcode background colors here; handled by theme tokens in app.css */
 body { margin: 0; min-width: 320px; }
-
 #root, .theme-light, .theme-dark { min-height: 100vh; }

@@ -13,49 +13,47 @@ function Invite() {
         <div className="page">
             <header className="page-head">
                 <div>
-                    <p className="label">Bring a little chaos to campus</p>
-                    <h1>Bring your <em>people</em>.</h1>
-                    <p>Imagine finding out your roommate was Anonymous Panda.</p>
+                    <p className="eyebrow">Invite people you trust</p>
+                    <h1 className="h1">Bring your <em>people</em>.</h1>
                 </div>
+                <aside>3 <span className="accent">online now</span></aside>
             </header>
 
             <div className="invite-grid">
                 <section className="invite-hero">
-                    <div>
-                        <p className="label">Campus signal</p>
-                        <h2>Your campus is more fun with <em style={{ fontStyle: "italic", fontFamily: "var(--serif)", fontWeight: 500 }}>friends.</em></h2>
-                        <p>Start a secret little social layer with the people you already know — without making every conversation a big thing.</p>
-                    </div>
-                    <button className="btn" type="button" onClick={copyLink} style={{ alignSelf: "flex-start" }}>
+                    <p className="eyebrow">Invite your campus</p>
+                    <h2>Nearly is better when your people are here.</h2>
+                    <p>Start a quiet social layer without making every conversation a big thing.</p>
+                    <button className="btn btn-primary" type="button" onClick={copyLink}>
                         {copied ? <Check size={14} /> : <Share2 size={14} />}
-                        {copied ? "Link copied" : "Share your invite"}
+                        {copied ? "Link copied" : "Share invite"}
                     </button>
                 </section>
 
                 <aside className="invite-stack">
                     <section className="invite-box">
-                        <span className="label">Your invite link</span>
+                        <span className="eyebrow">Your invite link</span>
                         <code className="invite-code">nearly.app/join/your-campus</code>
                         <div className="invite-actions">
                             <button className="btn btn-ghost" type="button" onClick={copyLink}>
-                                <Copy size={13} /> {copied ? "Copied" : "Copy link"}
+                                <Copy size={12} strokeWidth={1.8} /> {copied ? "Copied" : "Copy link"}
                             </button>
                             <button className="btn btn-ghost" type="button">
-                                <MessageCircle size={13} /> WhatsApp
+                                <MessageCircle size={12} strokeWidth={1.8} /> WhatsApp
                             </button>
                             <button className="btn btn-ghost" type="button">
-                                <Share2 size={13} /> Story
+                                <Share2 size={12} strokeWidth={1.8} /> Story
                             </button>
                         </div>
 
                         <div className="qr-tile">
-                            <QrCode size={20} />
+                            <QrCode size={20} strokeWidth={1.5} />
                             <span>Scan to join</span>
                         </div>
                     </section>
 
                     <section className="invite-box">
-                        <span className="label">Your signal</span>
+                        <span className="eyebrow">Invite activity</span>
                         <div className="stats">
                             <div><strong>12</strong><span>Invited</span></div>
                             <div><strong>7</strong><span>Joined</span></div>

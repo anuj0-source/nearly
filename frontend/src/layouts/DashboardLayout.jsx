@@ -1,13 +1,27 @@
-import { Outlet } from "react-router-dom";
+import { Outlet, useLocation } from "react-router-dom";
 import Sidebar from "../components/sidebar";
 import BottomNav from "../components/BottomNav";
+import GhostMark from "../components/GhostMark";
 
 function DashboardLayout({ darkMode, onToggleTheme }) {
+    const { pathname } = useLocation();
+    const hideTopbar = pathname === "/chat";
+
     return (
         <div className="shell">
             <Sidebar darkMode={darkMode} onToggleTheme={onToggleTheme} />
-            <main style={{ minWidth: 0, flex: 1 }}>
-                <Outlet />
+            <main className="dashboard-main">
+                {!hideTopbar && (
+                    <header className="topbar">
+                        <div className="topbar-left">
+                            <GhostMark className="brand-logo-mark" />
+                            <span className="wordmark">Nearly</span>
+                        </div>
+                    </header>
+                )}
+                <div className="dashboard-content">
+                    <Outlet />
+                </div>
             </main>
             <BottomNav />
         </div>

@@ -1,12 +1,12 @@
 import { NavLink } from "react-router-dom";
-import { Archive, MapPin, MessageCircle, Send, UserRound } from "lucide-react";
+import { Gift, Heart, MapPin, MessageCircle, User } from "lucide-react";
 
 const items = [
     { label: "Chat", path: "/chat", Icon: MessageCircle },
-    { label: "Matches", path: "/matches", Icon: Archive },
+    { label: "Matches", path: "/matches", Icon: Heart },
     { label: "Nearby", path: "/nearby", Icon: MapPin },
-    { label: "Profile", path: "/profile", Icon: UserRound },
-    { label: "Invite", path: "/invite", Icon: Send },
+    { label: "Profile", path: "/profile", Icon: User },
+    { label: "Invite", path: "/invite", Icon: Gift },
 ];
 
 function BottomNav() {
@@ -14,11 +14,17 @@ function BottomNav() {
         <nav className="bn" aria-label="Mobile">
             <div className="bn-grid">
                 {items.map(({ label, path, Icon }) => (
-                    <NavLink key={path} to={path} className={({ isActive }) => `bn-item ${isActive ? "on" : ""}`}>
-                        {() => (
+                    <NavLink
+                        key={path}
+                        to={path}
+                        className={({ isActive }) => `bn-item ${isActive ? "on" : ""}`}
+                        title={label}
+                        aria-label={label}
+                    >
+                        {({ isActive }) => (
                             <>
-                                <Icon size={16} strokeWidth={1.7} />
-                                <span>{label}</span>
+                                <Icon size={18} strokeWidth={isActive ? 2 : 1.6} />
+                                <span style={{ fontSize: 9.5, fontWeight: 600, letterSpacing: "0.04em", textTransform: "uppercase" }}>{label}</span>
                             </>
                         )}
                     </NavLink>

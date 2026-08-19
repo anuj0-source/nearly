@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { ArrowRight, Check, MoreHorizontal, RotateCw, Send, Shield, Sparkles, X } from "lucide-react";
 import AnonymousAvatar from "../components/AnonymousAvatar";
-import AnonymousFigure from "../components/AnonymousFigure";
+import GhostMark from "../components/GhostMark";
 import { anonymousPeople, interests as allInterests, starterMessages } from "../data/mockData";
 
 function Chat() {
@@ -55,12 +55,12 @@ function Chat() {
         event.preventDefault();
         const trimmed = message.trim();
         if (!trimmed) return;
-        setMessages((current) => [...current, { id: `sent-${Date.now()}`, sender: "me", text: trimmed, time: "Just now" }]);
+        setMessages((current) => [...current, { id: `sent-${Date.now()}`, sender: "me", text: trimmed, time: "10:24 PM" }]);
         setMessage("");
         setIsTyping(true);
         replyTimerRef.current = window.setTimeout(() => {
             setIsTyping(false);
-            setMessages((current) => [...current, { id: `reply-${Date.now()}`, sender: "them", text: "That sounds like a good reason to be here.", time: "Just now" }]);
+            setMessages((current) => [...current, { id: `reply-${Date.now()}`, sender: "them", text: "Nice! I'm into that too.", time: "10:25 PM" }]);
         }, 1400);
     }
 
@@ -68,60 +68,55 @@ function Chat() {
     if (chatState === "setup") {
         return (
             <section className="chat-setup">
-                <div className="mystery-side">
-                    <div className="anon-frame chat-identity-card">
-                        <div className="anon-cap">
-                            <small>anon · looking around</small>
-                            <span className="ix">now</span>
-                        </div>
-                        <div className="anon-figure">
-                            <AnonymousFigure />
-                        </div>
-                        <div className="anon-foot">
-                            <span className="anon-handle">Someone, somewhere.</span>
-                            <small>~ 1.2km</small>
-                        </div>
+                <div className="chat-setup-visual" aria-hidden="true">
+                    <div className="ring r3" />
+                    <div className="ring r2" />
+                    <div className="ring r1" />
+                    <span className="pip p1" />
+                    <span className="pip p2" />
+                    <span className="pip p3" />
+                    <span className="pip p4" />
+                    <div className="core">
+                        <GhostMark />
                     </div>
                 </div>
 
-                <div className="form-side">
-                    <p className="label">Anonymous mode</p>
-                    <h1>Who&apos;s <em>out</em> there?</h1>
-                    <p className="lead">Someone nearby is also looking for someone to talk to. Give us a few clues — or keep it completely random.</p>
+                <div className="chat-setup-side">
+                    <div className="chat-setup-title">
+                        <h2>Who&apos;s out there?</h2>
+                        <p>Someone nearby is also looking for someone to talk to.</p>
+                    </div>
 
-                    <div className="clue-card">
-                        <div className="clue-head">
-                            <div>
-                                <h2>Give us a few clues</h2>
-                                <p>Pick interests you vibe with. Optional.</p>
-                            </div>
-                            <span className="clue-num">{selectedInterests.length}/5</span>
+                    <div className="chat-setup-card">
+                        <div className="chip-row">
+                            <span className="label"><span className="dot" /> What are you into? <span className="optional">· optional</span></span>
+                            <span className="chip-num">{selectedInterests.length}/5</span>
                         </div>
 
                         <div className="chips">
                             {allInterests.map((interest) => {
-                                const on = selectedInterests.includes(interest);
+                                const on = selectedInterests.includes(interest.label);
                                 return (
                                     <button
-                                        key={interest}
+                                        key={interest.id}
                                         type="button"
                                         className={`chip ${on ? "on" : ""}`}
                                         aria-pressed={on}
                                         disabled={!on && selectedInterests.length >= 5}
-                                        onClick={() => toggleInterest(interest)}
+                                        onClick={() => toggleInterest(interest.label)}
                                     >
-                                        {on ? <Check size={11} /> : null}
-                                        {interest}
+                                        <span className="chip-icon">{interest.icon}</span>
+                                        {interest.label}
                                     </button>
                                 );
                             })}
                         </div>
 
-                        <div className="clue-foot">
-                            <span className="privacy"><Shield size={11} /> Your identity stays hidden.</span>
+                        <div className="chat-setup-foot">
                             <button className="btn btn-primary" type="button" onClick={startMatching}>
-                                Find someone <ArrowRight size={14} />
+                                <Sparkles size={13} strokeWidth={2} /> Find someone <ArrowRight size={13} />
                             </button>
+                            <span className="privacy"><Shield size={11} strokeWidth={1.8} /> Your identity stays hidden.</span>
                         </div>
                     </div>
                 </div>
@@ -134,15 +129,18 @@ function Chat() {
         return (
             <section className="match-screen">
                 <div className="match-wrap">
-                    <p className="label">Looking around</p>
+                    <p className="eyebrow"><span className="dot" /> Looking around</p>
                     <h1>Who&apos;s out <em>there</em>...</h1>
                     <p className="lead">Finding someone nearby who might be a good match.</p>
 
                     <div className="match-visual" aria-label="Searching">
+                        <div className="ring r4" />
                         <div className="ring r3" />
-                        <div className="ring r1" />
                         <div className="ring r2" />
-                        <div className="core">?</div>
+                        <div className="ring r1" />
+                        <span className="sat s1" />
+                        <span className="sat s2" />
+                        <div className="core"><GhostMark /></div>
                     </div>
 
                     <p className="match-status">
@@ -150,7 +148,7 @@ function Chat() {
                     </p>
                     <div className="match-cancel">
                         <button className="btn btn-quiet" type="button" onClick={endChat}>
-                            <X size={14} /> Cancel
+                            Cancel
                         </button>
                     </div>
                 </div>
@@ -163,21 +161,18 @@ function Chat() {
         <section className="conversation">
             <header className="conv-top">
                 <div className="conv-person">
-                    <AnonymousAvatar type={match.avatar} size="sm" online={match.status === "online"} />
+                    <AnonymousAvatar type={match.avatar} size="sm" online />
                     <div>
                         <h3 className="conv-name">{match.name}</h3>
                         <p className="conv-meta">
                             <span className="status-dot" />
-                            Online somewhere nearby
+                            Online
                         </p>
                     </div>
                 </div>
-                <div style={{ display: "flex", gap: 4 }}>
+                <div style={{ display: "flex", gap: 2 }}>
                     <button className="ix-btn" type="button" aria-label="Chat options" onClick={() => setShowMenu((c) => !c)}>
-                        <MoreHorizontal size={16} />
-                    </button>
-                    <button className="ix-btn" type="button" aria-label="End chat" onClick={endChat}>
-                        <X size={15} />
+                        <MoreHorizontal size={16} strokeWidth={1.75} />
                     </button>
                 </div>
                 {showMenu && (
@@ -191,9 +186,9 @@ function Chat() {
 
             <div className="messages">
                 <div className="notice">
-                    <div className="notice-mark"><Sparkles size={13} strokeWidth={1.8} /></div>
+                    <div className="notice-mark"><Sparkles size={11} strokeWidth={2} /></div>
                     <div>
-                        <strong>You found someone nearby.</strong>
+                        <strong>You found someone nearby</strong>
                         You&apos;re both here to meet someone new.
                     </div>
                 </div>
@@ -221,7 +216,7 @@ function Chat() {
             <form className="composer" onSubmit={sendMessage}>
                 <div className="composer-inner">
                     <button className="next-btn" type="button" onClick={nextMatch} aria-label="Next match">
-                        <RotateCw size={13} /><span>Next match</span>
+                        <RotateCw size={13} strokeWidth={1.8} /><span>Next match</span>
                     </button>
                     <input
                         value={message}
