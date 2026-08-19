@@ -1,7 +1,7 @@
 import { NavLink } from "react-router-dom";
 import { Gift, Heart, MapPin, MessageCircle, User } from "lucide-react";
 import ThemeToggle from "./ThemeToggle";
-import GhostMark from "./GhostMark";
+import BrandLogo from "./BrandLogo";
 
 const items = [
     { id: "chat", label: "Chat", path: "/chat", Icon: MessageCircle },
@@ -15,7 +15,7 @@ function Sidebar({ darkMode, onToggleTheme }) {
     return (
         <aside className="sb" aria-label="Primary">
             <NavLink to="/" className="sb-brand" aria-label="Nearly home">
-                <GhostMark className="brand-logo-mark" />
+                <BrandLogo compact />
             </NavLink>
 
             <nav className="sb-nav">

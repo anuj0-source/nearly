@@ -1,6 +1,5 @@
 import { MapPin } from "lucide-react";
 import AnonymousAvatar from "../components/AnonymousAvatar";
-import GhostMark from "../components/GhostMark";
 import { anonymousPeople } from "../data/mockData";
 
 const STATUS_LABEL = {
@@ -21,7 +20,7 @@ function Nearby() {
             </header>
 
             <aside className="nearby-radar" aria-hidden="true">
-                <div className="core"><GhostMark /></div>
+                <div className="core"><img className="ring-ghost-art" src="/mask.png" alt="" /></div>
                 <div className="pip r1"><AnonymousAvatar type="fox" /></div>
                 <div className="pip r2"><AnonymousAvatar type="panda" /></div>
                 <div className="pip r3"><AnonymousAvatar type="owl" /></div>

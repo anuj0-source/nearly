@@ -1,7 +1,7 @@
 import { Shield } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import ThemeToggle from "../components/ThemeToggle";
-import GhostMark from "../components/GhostMark";
+import BrandLogo from "../components/BrandLogo";
 import HomeBackground from "../components/HomeBackground";
 
 function Home({ darkMode, onToggleTheme }) {
@@ -11,10 +11,7 @@ function Home({ darkMode, onToggleTheme }) {
         <main className="home">
             <HomeBackground />
             <header className="home-top">
-                <div className="home-brand">
-                    <GhostMark className="brand-logo-mark" />
-                    <span>Nearly</span>
-                </div>
+                <BrandLogo className="home-brand" />
                 <ThemeToggle darkMode={darkMode} onToggle={onToggleTheme} icon />
             </header>
 
@@ -25,7 +22,7 @@ function Home({ darkMode, onToggleTheme }) {
                         <div className="ring r2" />
                         <div className="ring r1" />
                         <div className="core">
-                            <GhostMark />
+                            <img className="ring-ghost-art" src="/mask.png" alt="" />
                         </div>
                     </div>
 

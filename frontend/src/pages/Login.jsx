@@ -1,7 +1,7 @@
 import { ArrowLeft, Check, Shield } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import ThemeToggle from "../components/ThemeToggle";
-import GhostMark from "../components/GhostMark";
+import BrandLogo from "../components/BrandLogo";
 
 function Login({ darkMode, onToggleTheme }) {
     const navigate = useNavigate();
@@ -11,10 +11,7 @@ function Login({ darkMode, onToggleTheme }) {
                 <ThemeToggle darkMode={darkMode} onToggle={onToggleTheme} icon />
             </div>
             <section className="login-card">
-                <div className="home-brand">
-                    <GhostMark className="brand-logo-mark" />
-                    <span>Nearly</span>
-                </div>
+                <BrandLogo className="home-brand" />
                 <h1>Save your anonymous profile.</h1>
                 <p className="login-sub">
                     Keep your matches and discoveries across devices. Your identity still stays hidden while you chat.

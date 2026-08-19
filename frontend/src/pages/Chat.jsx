@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { ArrowRight, MoreHorizontal, RotateCw, Send, Shield, Sparkles } from "lucide-react";
+import { ArrowRight, MoreHorizontal, RotateCw, Send, Shield } from "lucide-react";
 import AnonymousAvatar from "../components/AnonymousAvatar";
 import GhostMark from "../components/GhostMark";
 import { anonymousPeople, interests as allInterests, starterMessages } from "../data/mockData";
@@ -114,7 +114,7 @@ function Chat() {
                     <span className="pip p3" />
                     <span className="pip p4" />
                     <div className="core">
-                        <GhostMark />
+                        <img className="ring-ghost-art" src="/mask.png" alt="" />
                     </div>
                 </div>
 
@@ -150,8 +150,9 @@ function Chat() {
                         </div>
 
                         <div className="chat-setup-foot">
-                            <button className="btn btn-primary" type="button" onClick={startMatching}>
-                                <Sparkles size={13} strokeWidth={2} /> Find someone <ArrowRight size={13} />
+                            <button className="btn find-someone-btn" type="button" onClick={startMatching}>
+                                <span className="find-someone-icon" aria-hidden="true">🔎</span>
+                                Find someone <ArrowRight size={15} strokeWidth={2} aria-hidden="true" />
                             </button>
                             <span className="privacy"><Shield size={11} strokeWidth={1.8} /> Your identity stays hidden.</span>
                         </div>
@@ -177,7 +178,7 @@ function Chat() {
                         <div className="ring r1" />
                         <span className="sat s1" />
                         <span className="sat s2" />
-                        <div className="core"><GhostMark /></div>
+                        <div className="core"><img className="ring-ghost-art" src="/mask.png" alt="" /></div>
                     </div>
 
                     <p className="match-status">

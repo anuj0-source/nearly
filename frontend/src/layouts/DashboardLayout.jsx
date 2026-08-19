@@ -1,7 +1,7 @@
 import { Outlet, useLocation } from "react-router-dom";
 import Sidebar from "../components/sidebar";
 import BottomNav from "../components/BottomNav";
-import GhostMark from "../components/GhostMark";
+import BrandLogo from "../components/BrandLogo";
 
 function DashboardLayout({ darkMode, onToggleTheme }) {
     const { pathname } = useLocation();
@@ -14,8 +14,7 @@ function DashboardLayout({ darkMode, onToggleTheme }) {
                 {!hideTopbar && (
                     <header className="topbar">
                         <div className="topbar-left">
-                            <GhostMark className="brand-logo-mark" />
-                            <span className="wordmark">Nearly</span>
+                            <BrandLogo className="dashboard-brand" />
                         </div>
                     </header>
                 )}
