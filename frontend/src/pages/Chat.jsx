@@ -242,7 +242,7 @@ function Chat() {
 
                 {messages.map((item) => (
                     <div key={item.id} className={`row ${item.sender === "me" ? "sent" : ""}`}>
-                        {item.sender === "them" && <AnonymousAvatar type={match.avatar} size="sm" />}
+                        {item.sender === "them" && <AnonymousAvatar type={match.avatar} size="md" />}
                         <div className="bubble">
                             {item.text}
                             <small>
@@ -256,7 +256,7 @@ function Chat() {
 
                 {isTyping && (
                     <div className="row">
-                        <AnonymousAvatar type={match.avatar} size="sm" />
+                        <AnonymousAvatar type={match.avatar} size="md" />
                         <div className="typing"><i /><i /><i /></div>
                     </div>
                 )}
