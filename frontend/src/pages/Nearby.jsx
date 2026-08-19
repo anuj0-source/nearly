@@ -1,4 +1,4 @@
-import { MapPin, Radio } from "lucide-react";
+import { MapPin } from "lucide-react";
 import AnonymousAvatar from "../components/AnonymousAvatar";
 import GhostMark from "../components/GhostMark";
 import { anonymousPeople } from "../data/mockData";
@@ -35,33 +35,21 @@ function Nearby() {
             <div className="nearby-grid">
                 {anonymousPeople.map((person, i) => (
                     <article className="nearby-card" key={person.id} style={{ "--i": i }}>
-                        <span className="nearby-fold" aria-hidden="true">
-                            <Radio size={9} strokeWidth={2} />
-                        </span>
-
                         <header className="nearby-head">
-                            <span className="nearby-cid">№{person.id.toUpperCase()}-{(i + 1).toString().padStart(2, "0")}</span>
+                            <div className="nearby-identity">
+                                <div className="nearby-avatar">
+                                    <AnonymousAvatar type={person.avatar} size="lg" online={person.status === "online"} />
+                                </div>
+                                <div className="nearby-meta">
+                                    <h3>{person.name}</h3>
+                                    <p>{person.description}</p>
+                                </div>
+                            </div>
                             <span className={`nearby-status status-${person.status}`}>
                                 <span className="nearby-status-pip" />
                                 {STATUS_LABEL[person.status] || person.status}
                             </span>
                         </header>
-
-                        <div className="nearby-identity">
-                            <div className="nearby-avatar">
-                                <AnonymousAvatar type={person.avatar} online={person.status === "online"} />
-                            </div>
-                            <div className="nearby-meta">
-                                <h3>{person.name}</h3>
-                                <p>{person.description}</p>
-                            </div>
-                        </div>
-
-                        <div className="nearby-divider" aria-hidden="true">
-                            <span />
-                            <svg width="6" height="6" viewBox="0 0 6 6" aria-hidden="true"><circle cx="3" cy="3" r="1" fill="currentColor" /></svg>
-                            <span />
-                        </div>
 
                         <footer className="nearby-foot">
                             <ul className="nearby-tags">

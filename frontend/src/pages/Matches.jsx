@@ -1,4 +1,3 @@
-import { ArrowUpRight, MessageSquare } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import AnonymousAvatar from "../components/AnonymousAvatar";
 import { previousMatches } from "../data/mockData";
@@ -26,35 +25,21 @@ function Matches() {
                         tabIndex={0}
                         style={{ "--i": i }}
                     >
-                        <span className="match-rail" aria-hidden="true" />
                         <div className="match-avatar">
-                            <AnonymousAvatar type={person.avatar} online={person.status === "online"} />
+                            <AnonymousAvatar type={person.avatar} size="lg" online={person.status === "online"} />
                         </div>
 
                         <div className="match-body">
                             <header className="match-head">
-                                <div className="match-id">
-                                    <span className="match-name">{person.name}</span>
-                                    <span className="match-cid">#{person.id.toUpperCase()}-{(i + 1).toString().padStart(3, "0")}</span>
-                                </div>
-                                <span className="match-time">{person.time}</span>
+                                <span className="match-name">{person.name}</span>
+                                <time className="match-time">{person.time}</time>
                             </header>
 
-                            <p className="match-quote">
-                                <MessageSquare size={11} strokeWidth={1.8} />
-                                <span>{person.lastMessage}</span>
-                            </p>
-
-                            <footer className="match-foot">
-                                <ul className="match-tags">
-                                    {person.interests.map((interest) => (
-                                        <li className="match-tag" key={interest}>{interest}</li>
-                                    ))}
-                                </ul>
-                                <span className="match-go" aria-hidden="true">
-                                    <ArrowUpRight size={14} strokeWidth={1.75} />
-                                </span>
-                            </footer>
+                            <ul className="match-tags">
+                                {person.interests.map((interest) => (
+                                    <li className="match-tag" key={interest}>{interest}</li>
+                                ))}
+                            </ul>
                         </div>
                     </article>
                 ))}
