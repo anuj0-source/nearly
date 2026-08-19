@@ -1,30 +1,24 @@
 import { Moon, Sun } from "lucide-react";
 
 function ThemeToggle({ darkMode, onToggle, icon = false }) {
-    if (icon) {
-        return (
-            <button
-                className="theme-toggle icon"
-                type="button"
-                onClick={onToggle}
-                aria-label={darkMode ? "Switch to light mode" : "Switch to dark mode"}
-                title={darkMode ? "Light" : "Dark"}
-            >
-                {darkMode ? <Sun size={16} strokeWidth={1.75} /> : <Moon size={16} strokeWidth={1.75} />}
-            </button>
-        );
-    }
-
     return (
         <button
-            className="theme-toggle"
+            className={`theme-toggle secret-toggle ${darkMode ? "is-dark" : "is-light"} ${icon ? "icon" : "with-label"}`}
             type="button"
             onClick={onToggle}
             aria-label={darkMode ? "Switch to light mode" : "Switch to dark mode"}
-            title={darkMode ? "Light" : "Dark"}
+            aria-pressed={darkMode}
+            title={darkMode ? "Night mode active" : "Day mode active"}
         >
-            {darkMode ? <Sun size={14} /> : <Moon size={14} />}
-            <span>{darkMode ? "Light mode" : "Dark mode"}</span>
+            <span className="secret-toggle-track" aria-hidden="true">
+                <span className="secret-toggle-symbol secret-toggle-symbol-dark"><Moon /></span>
+                <span className="secret-toggle-symbol secret-toggle-symbol-light"><Sun /></span>
+                <span className="secret-toggle-seal">
+                    <Moon className="secret-toggle-seal-moon" />
+                    <Sun className="secret-toggle-seal-sun" />
+                </span>
+            </span>
+            {!icon && <span className="secret-toggle-label">{darkMode ? "Night mode" : "Day mode"}</span>}
         </button>
     );
 }

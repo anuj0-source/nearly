@@ -20,6 +20,13 @@ function createChatMessage({ idPrefix, sender, text }) {
     };
 }
 
+function scrollMessagesToBottom(messagesElement, behavior = "smooth") {
+    messagesElement?.scrollTo({
+        top: messagesElement.scrollHeight,
+        behavior,
+    });
+}
+
 function MatchNoticeIcon() {
     return (
         <svg className="notice-icon" viewBox="0 0 32 32" fill="none" aria-hidden="true" focusable="false">
@@ -41,7 +48,8 @@ function Chat() {
     const [message, setMessage] = useState("");
     const [showMenu, setShowMenu] = useState(false);
     const [isTyping, setIsTyping] = useState(false);
-    const messagesEndRef = useRef(null);
+    const messagesRef = useRef(null);
+    const messageInputRef = useRef(null);
     const replyTimerRef = useRef(null);
 
     useEffect(() => () => window.clearTimeout(replyTimerRef.current), []);
@@ -62,10 +70,34 @@ function Chat() {
     }, [chatState]);
 
     useEffect(() => {
-        if (messagesEndRef.current) {
-            messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
-        }
+        scrollMessagesToBottom(messagesRef.current);
     }, [messages, isTyping]);
+
+    useEffect(() => {
+        if (chatState !== "chatting") return undefined;
+
+        const root = document.documentElement;
+        const viewport = window.visualViewport;
+        const syncViewportHeight = () => {
+            const height = viewport?.height ?? window.innerHeight;
+            root.style.setProperty("--chat-viewport-height", `${Math.round(height)}px`);
+            window.requestAnimationFrame(() => scrollMessagesToBottom(messagesRef.current, "auto"));
+        };
+
+        root.classList.add("chatting-active");
+        syncViewportHeight();
+        window.addEventListener("resize", syncViewportHeight);
+        viewport?.addEventListener("resize", syncViewportHeight);
+        viewport?.addEventListener("scroll", syncViewportHeight);
+
+        return () => {
+            root.classList.remove("chatting-active");
+            root.style.removeProperty("--chat-viewport-height");
+            window.removeEventListener("resize", syncViewportHeight);
+            viewport?.removeEventListener("resize", syncViewportHeight);
+            viewport?.removeEventListener("scroll", syncViewportHeight);
+        };
+    }, [chatState]);
 
     function toggleInterest(interest) {
         setSelectedInterests((current) => {
@@ -91,6 +123,10 @@ function Chat() {
         setMessages((current) => [...current, createChatMessage({ idPrefix: "sent", sender: "me", text: trimmed })]);
         setMessage("");
         setIsTyping(true);
+        window.requestAnimationFrame(() => {
+            messageInputRef.current?.focus({ preventScroll: true });
+            scrollMessagesToBottom(messagesRef.current);
+        });
         replyTimerRef.current = window.setTimeout(() => {
             setIsTyping(false);
             setMessages((current) => [...current, createChatMessage({
@@ -99,6 +135,10 @@ function Chat() {
                 text: "Nice! I'm into that too.",
             })]);
         }, 1400);
+    }
+
+    function handleMessageFocus() {
+        window.requestAnimationFrame(() => scrollMessagesToBottom(messagesRef.current, "auto"));
     }
 
     /* ============ SETUP ============ */
@@ -232,7 +272,7 @@ function Chat() {
                 )}
             </header>
 
-            <div className="messages">
+            <div className="messages" ref={messagesRef}>
                 <div className="notice" role="status">
                     <div className="notice-mark"><MatchNoticeIcon /></div>
                     <div className="notice-copy">
@@ -261,8 +301,6 @@ function Chat() {
                         <div className="typing"><i /><i /><i /></div>
                     </div>
                 )}
-
-                <div ref={messagesEndRef} />
             </div>
 
             <form className="composer" onSubmit={sendMessage}>
@@ -272,12 +310,19 @@ function Chat() {
                     </button>
                     <div className="composer-inner">
                         <input
+                            ref={messageInputRef}
                             value={message}
                             onChange={(e) => setMessage(e.target.value)}
+                            onFocus={handleMessageFocus}
                             placeholder="Say hello..."
                             aria-label="Message"
                         />
-                        <button className="send-btn" type="submit" aria-label="Send">
+                        <button
+                            className="send-btn"
+                            type="submit"
+                            aria-label="Send"
+                            onPointerDown={(event) => event.preventDefault()}
+                        >
                             <Send size={14} />
                         </button>
                     </div>
