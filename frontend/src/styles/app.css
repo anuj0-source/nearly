@@ -1638,11 +1638,14 @@ a { color: inherit; text-decoration: none; }
     backdrop-filter: blur(18px) saturate(1.08);
 }
 
-.conv-person { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.conv-person { display: flex; align-items: center; gap: 12px; min-width: 0; }
 .conv-person .av {
+    width: 42px;
+    height: 42px;
     border-color: color-mix(in srgb, var(--accent) 28%, var(--line-strong));
     box-shadow: 0 0 0 3px var(--accent-soft), 0 8px 18px -14px color-mix(in srgb, var(--ink) 72%, transparent);
 }
+.conv-person .av .pip { width: 10px; height: 10px; right: 0; bottom: 0; }
 .conv-back {
     display: none;
     width: 30px;
@@ -1743,33 +1746,87 @@ a { color: inherit; text-decoration: none; }
 .messages::-webkit-scrollbar { display: none; }
 
 .notice {
+    position: relative;
+    isolation: isolate;
     display: flex;
-    gap: 10px;
-    align-items: flex-start;
+    gap: 12px;
+    align-items: center;
     align-self: center;
-    max-width: 320px;
+    width: min(100%, 360px);
+    max-width: 360px;
     margin: 0 auto 14px;
-    padding: 9px 13px;
-    border: 1px solid color-mix(in srgb, var(--paper) 62%, var(--accent));
-    border-radius: 14px;
-    background: linear-gradient(135deg, color-mix(in srgb, var(--paper) 70%, transparent), color-mix(in srgb, var(--accent-soft) 78%, transparent));
+    padding: 10px 13px 10px 11px;
+    border: 1px solid color-mix(in srgb, var(--accent) 38%, var(--line-strong));
+    border-radius: 16px;
+    background: linear-gradient(115deg, color-mix(in srgb, var(--paper) 78%, transparent), color-mix(in srgb, var(--accent-soft) 82%, transparent));
     color: var(--muted);
     font-size: 12px;
-    line-height: 1.5;
-    box-shadow: 0 12px 26px -24px color-mix(in srgb, var(--ink) 70%, transparent), inset 0 1px 0 color-mix(in srgb, var(--paper) 84%, transparent);
+    line-height: 1.35;
+    box-shadow: 0 12px 26px -24px color-mix(in srgb, var(--ink) 70%, transparent), inset 0 1px 0 color-mix(in srgb, var(--paper) 88%, transparent);
     -webkit-backdrop-filter: blur(16px) saturate(1.2);
     backdrop-filter: blur(16px) saturate(1.2);
 }
-.notice strong { color: var(--ink); font-family: var(--brand); font-weight: 650; display: block; margin-bottom: 1px; font-size: 11.5px; }
+
+.notice::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    border-radius: inherit;
+    background: radial-gradient(58% 130% at 100% 50%, color-mix(in srgb, var(--accent) 16%, transparent), transparent 72%);
+    pointer-events: none;
+}
+
+.notice-mark,
+.notice-copy,
+.notice-status { position: relative; z-index: 1; }
+
+.notice-copy {
+    display: flex;
+    align-items: center;
+    min-width: 0;
+}
+
+.notice strong {
+    color: var(--ink);
+    font-family: var(--brand);
+    font-size: 12.5px;
+    font-weight: 700;
+    letter-spacing: -0.015em;
+}
+
+.notice-name {
+    color: var(--accent);
+    font-weight: 750;
+    text-shadow: 0 2px 12px color-mix(in srgb, var(--accent) 26%, transparent);
+}
+
 .notice-mark {
-    width: 20px;
-    height: 20px;
+    width: 36px;
+    height: 36px;
     display: grid;
     place-items: center;
-    border-radius: 7px;
-    border: 1px solid color-mix(in srgb, var(--accent) 24%, var(--line));
-    background: var(--accent-soft);
+    border: 1px solid color-mix(in srgb, var(--accent) 45%, var(--line));
+    border-radius: 12px;
+    background: linear-gradient(145deg, color-mix(in srgb, var(--paper) 36%, var(--accent)), var(--accent));
     color: var(--accent);
+    flex-shrink: 0;
+    box-shadow: 0 9px 16px -13px color-mix(in srgb, var(--accent) 90%, transparent), inset 0 1px 0 rgba(255, 255, 255, 0.36);
+}
+
+.notice-icon { width: 24px; height: 24px; color: var(--paper); }
+.notice-icon circle,
+.notice-icon path { stroke: currentColor; stroke-width: 1.65; stroke-linecap: round; stroke-linejoin: round; }
+.notice-icon-link { stroke-dasharray: 1.75 2.5; }
+.notice-icon-spark { stroke-width: 1.45; }
+
+.notice-status {
+    width: 7px;
+    height: 7px;
+    margin-left: auto;
+    border-radius: 50%;
+    background: var(--accent);
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 14%, transparent), 0 0 12px color-mix(in srgb, var(--accent) 62%, transparent);
     flex-shrink: 0;
 }
 

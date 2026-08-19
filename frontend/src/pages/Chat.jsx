@@ -20,6 +20,19 @@ function createChatMessage({ idPrefix, sender, text }) {
     };
 }
 
+function MatchNoticeIcon() {
+    return (
+        <svg className="notice-icon" viewBox="0 0 32 32" fill="none" aria-hidden="true" focusable="false">
+            <circle cx="10" cy="11" r="3.25" />
+            <path d="M4.75 23.25c.55-3.35 2.6-5.25 5.25-5.25s4.7 1.9 5.25 5.25" />
+            <circle cx="22" cy="11" r="3.25" />
+            <path d="M16.75 23.25c.55-3.35 2.6-5.25 5.25-5.25s4.7 1.9 5.25 5.25" />
+            <path className="notice-icon-link" d="M13.45 14.1h5.1" />
+            <path className="notice-icon-spark" d="M16 4.25v2.1M14.95 5.3h2.1" />
+        </svg>
+    );
+}
+
 function Chat() {
     const [chatState, setChatState] = useState("setup");
     const [selectedInterests, setSelectedInterests] = useState([]);
@@ -195,7 +208,7 @@ function Chat() {
 
             <header className="conv-top">
                 <div className="conv-person">
-                    <AnonymousAvatar type={match.avatar} size="sm" online />
+                    <AnonymousAvatar type={match.avatar} size="md" online />
                     <div>
                         <h3 className="conv-name">{match.name}</h3>
                         <p className="conv-meta">
@@ -219,12 +232,12 @@ function Chat() {
             </header>
 
             <div className="messages">
-                <div className="notice">
-                    <div className="notice-mark"><Sparkles size={11} strokeWidth={2} /></div>
-                    <div>
-                        <strong>You found someone nearby</strong>
-                        You&apos;re both here to meet someone new.
+                <div className="notice" role="status">
+                    <div className="notice-mark"><MatchNoticeIcon /></div>
+                    <div className="notice-copy">
+                        <strong>Matched with <span className="notice-name">{match.name}</span></strong>
                     </div>
+                    <span className="notice-status" aria-hidden="true" />
                 </div>
 
                 {messages.map((item) => (
