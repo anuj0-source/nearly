@@ -68,22 +68,21 @@ async def matchmaking(
         "message": "Matchmaking in progress"
     }
     
-# @router.websocket("/ws")
-# async def chat_websocket(session_id:str | None = Cookie(default=None), websocket: WebSocket):
+@router.websocket("/ws")
+async def chat_websocket(session_id:str | None = Cookie(default=None), websocket: WebSocket):
 
-#     if not session_id:
-#         await websocket.close()
-#         raise HTTPException(
-#             status_code=404,
-#             detail="session not found"
-#         )
+    if not session_id:
+        await websocket.close()
+        raise HTTPException(
+            status_code=404,
+            detail="session not found"
+        )
 
-#     if session_id in connected_users:
-#         return {
-#             "message":"Already connected"
-#         }
+    if session_id in connected_users:
+        return {
+            "message":"Already connected"
+        }
     
-#     await websocket.accept()
+    await websocket.accept()
 
-#     connected_users[session_id]=websocket
-
+    connected_users[session_id]=websocket
