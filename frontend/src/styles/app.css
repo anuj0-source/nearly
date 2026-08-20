@@ -2320,77 +2320,21 @@ a { color: inherit; text-decoration: none; }
 }
 .av-sm .pip { width: 7px; height: 7px; border-width: 1.5px; }
 
-.conversation-skeleton .conv-top,
-.conversation-skeleton .composer {
+.chat-setup-skeleton {
     pointer-events: none;
 }
-.messages-skeleton {
-    display: grid;
-    gap: 14px;
-}
-.skeleton-avatar-chat {
-    width: 42px;
-    height: 42px;
-    border-radius: 50%;
-}
-.skeleton-stack {
-    display: grid;
-    gap: 8px;
-    flex: 1;
-}
-.skeleton-chat-name {
-    width: 150px;
-    height: 16px;
-    border-radius: 999px;
-}
-.skeleton-chat-meta {
-    width: 86px;
-    height: 11px;
-    border-radius: 999px;
-}
-.skeleton-menu,
-.skeleton-status,
-.skeleton-notice-mark,
-.skeleton-next,
-.skeleton-send {
+.skeleton-setup-core,
+.skeleton-setup-line,
+.skeleton-setup-button,
+.skeleton-setup-privacy {
     position: relative;
     overflow: hidden;
-    background: color-mix(in srgb, var(--surface) 70%, transparent);
-}
-.skeleton-menu {
-    width: 28px;
-    height: 28px;
-    border-radius: 999px;
-}
-.skeleton-notice-mark {
-    width: 38px;
-    height: 38px;
-    border-radius: 50%;
-}
-.skeleton-notice-title {
-    width: min(260px, 52vw);
-    height: 14px;
-    border-radius: 999px;
-}
-.skeleton-status {
-    width: 9px;
-    height: 9px;
-    border-radius: 50%;
-}
-.skeleton-bubble {
-    position: relative;
-    overflow: hidden;
-    min-height: 52px;
-    border-radius: 18px;
     background: color-mix(in srgb, var(--surface) 72%, transparent);
 }
-.skeleton-bubble::after,
-.skeleton-menu::after,
-.skeleton-status::after,
-.skeleton-notice-mark::after,
-.skeleton-next::after,
-.skeleton-send::after,
-.skeleton-input::after {
+.skeleton-setup-core::after,
+.skeleton-setup-line::after,
+.skeleton-setup-button::after,
+.skeleton-setup-privacy::after {
     content: "";
     position: absolute;
     inset: 0;
@@ -2398,36 +2342,17 @@ a { color: inherit; text-decoration: none; }
     background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--paper) 58%, transparent), transparent);
     animation: skeletonShimmer 1.25s infinite;
 }
-.skeleton-bubble-incoming {
-    width: min(68%, 440px);
+.skeleton-setup-core {
+    width: 42%;
+    aspect-ratio: 1;
+    border-radius: 50%;
 }
-.skeleton-bubble-outgoing {
-    width: min(58%, 360px);
-    margin-left: auto;
-}
-.skeleton-bubble.short {
-    width: min(38%, 220px);
-}
-.skeleton-next {
-    width: 104px;
-    height: 40px;
-    border-radius: 12px;
-}
-.skeleton-input {
-    flex: 1;
-    height: 44px;
-    border-radius: 16px;
-    position: relative;
-    overflow: hidden;
-    background: color-mix(in srgb, var(--surface) 72%, transparent);
-}
-.skeleton-send {
-    width: 44px;
-    height: 44px;
-    border-radius: 12px;
-    position: relative;
-    overflow: hidden;
-}
+.skeleton-setup-line { border-radius: 999px; }
+.skeleton-setup-title { width: min(250px, 72vw); height: 30px; }
+.skeleton-setup-description { width: min(330px, 82vw); height: 12px; margin-top: 12px; }
+.skeleton-setup-description.short { width: min(220px, 58vw); margin-top: 8px; }
+.skeleton-setup-button { width: 100%; height: 50px; border-radius: 999px; }
+.skeleton-setup-privacy { width: 176px; height: 12px; border-radius: 999px; margin: 0 auto; }
 
 /* =============================================================
    PAGE SHELL (matches / nearby / profile / invite)

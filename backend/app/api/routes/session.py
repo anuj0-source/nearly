@@ -1,8 +1,11 @@
-from fastapi import APIRouter,Response,Cookie
+from fastapi import APIRouter,Response,Cookie,Depends
+from sqlalchemy.orm import Session
 import uuid
 import random
+from sqlalchemy import select
 
-from core.session import sessions,AnonymousUser
+from models.user import AnonymousSession
+from database import get_db
 
 router=APIRouter(
     prefix="/api/session",
@@ -105,12 +108,19 @@ ANIMALS = [
     "Raven",
 ]
 
-avatars = ["🦊", "🐼", "🦉", "🐯", "🐻", "👻"]
-
 @router.post("/anonymous")
-async def create_anonymous_session(response:Response,session_id:str | None = Cookie(default=None)):
-    if session_id in sessions:
-        return {**sessions[session_id].model_dump(),"new_session":False}
+async def create_anonymous_session(response:Response,session_id:str | None = Cookie(default=None),db : Session = Depends(get_db)):
+
+    stmt=select(AnonymousSession).where(AnonymousSession.session_id == session_id)
+    user=db.scalar(statement=stmt)
+
+    if user:
+        return {
+                "session_id":user.session_id,
+                "name":user.name,
+                "avatar":user.avatar,
+                "new_session":False
+            }
 
     else:
         new_session_id=str(uuid.uuid4())
@@ -121,13 +131,15 @@ async def create_anonymous_session(response:Response,session_id:str | None = Coo
 
         avatar=f"https://api.dicebear.com/9.x/notionists/svg?seed={seed}"
 
-        user=AnonymousUser(
+        user=AnonymousSession(
             name = f"{ADJECTIVES[first_name_index]} {ANIMALS[last_name_index]}",
             avatar=avatar,
             session_id=new_session_id
         )
 
-        sessions[new_session_id]=user
+        db.add(user)
+        db.commit()
+        db.refresh(user)
 
         response.set_cookie(
             key="session_id",
@@ -145,8 +157,23 @@ async def create_anonymous_session(response:Response,session_id:str | None = Coo
         }
 
 @router.get("/me")
-async def get_me(response:Response,session_id:str | None = Cookie(default=None)):
-    if session_id not in sessions:
-        return await create_anonymous_session(response)
-    else:
-        return sessions[session_id]
+async def get_me(response:Response,session_id:str | None = Cookie(default=None), db :Session = Depends(get_db)):
+
+    stmt=select(AnonymousSession).where(AnonymousSession.session_id == session_id)
+    user = db.scalar(stmt)
+
+    if not user:
+        res=await create_anonymous_session(response,session_id,db=db)
+        new_session_id=res["session_id"]
+        user=db.scalar(select(AnonymousSession).where(AnonymousSession.session_id == new_session_id))
+    
+    return {
+        "session_id":user.session_id,
+        "name":user.name,
+        "avatar":user.avatar,
+        "language":user.language,
+        "gender":user.gender,
+        "latitude":user.latitude,
+        "longitude":user.longitude,
+        "created_at":user.created_at
+        }

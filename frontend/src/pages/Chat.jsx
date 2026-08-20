@@ -106,53 +106,34 @@ function MatchNoticeIcon() {
     );
 }
 
-function ChatSkeleton() {
+function ChatSetupSkeleton() {
     return (
-        <section className="conversation conversation-skeleton" aria-busy="true" aria-live="polite">
-            <div className="conversation-wallpaper" aria-hidden="true">
-                <span className="wallpaper-orbit orbit-a" />
-                <span className="wallpaper-orbit orbit-b" />
-                <span className="wallpaper-clue clue-a">?</span>
-                <span className="wallpaper-clue clue-b">?</span>
-                <GhostMark className="wallpaper-ghost ghost-a" />
-                <GhostMark className="wallpaper-ghost ghost-b" />
-                <GhostMark className="wallpaper-ghost ghost-c" />
+        <section className="chat-setup chat-setup-skeleton" aria-busy="true" aria-live="polite">
+            <div className="chat-setup-visual" aria-hidden="true">
+                <div className="ring r3" />
+                <div className="ring r2" />
+                <div className="ring r1" />
+                <span className="pip p1" />
+                <span className="pip p2" />
+                <span className="pip p3" />
+                <span className="pip p4" />
+                <div className="skeleton-setup-core" />
             </div>
 
-            <header className="conv-top">
-                <div className="conv-person">
-                    <div className="skeleton-avatar skeleton-avatar-chat" />
-                    <div className="skeleton-stack">
-                        <div className="skeleton-line skeleton-chat-name" />
-                        <div className="skeleton-line skeleton-chat-meta" />
-                    </div>
-                </div>
-                <div className="skeleton-menu" />
-            </header>
-
-            <div className="messages messages-skeleton">
-                <div className="notice skeleton-notice">
-                    <div className="skeleton-notice-mark" />
-                    <div className="notice-copy">
-                        <div className="skeleton-line skeleton-notice-title" />
-                    </div>
-                    <div className="skeleton-status" />
+            <div className="chat-setup-side">
+                <div className="chat-setup-title">
+                    <div className="skeleton-setup-line skeleton-setup-title" />
+                    <div className="skeleton-setup-line skeleton-setup-description" />
+                    <div className="skeleton-setup-line skeleton-setup-description short" />
                 </div>
 
-                <div className="skeleton-bubble skeleton-bubble-incoming" />
-                <div className="skeleton-bubble skeleton-bubble-outgoing" />
-                <div className="skeleton-bubble skeleton-bubble-incoming short" />
+                <div className="chat-setup-card">
+                    <div className="chat-setup-foot">
+                        <div className="skeleton-setup-button" />
+                        <div className="skeleton-setup-privacy" />
+                    </div>
+                </div>
             </div>
-
-            <form className="composer" aria-hidden="true">
-                <div className="composer-row">
-                    <div className="skeleton-next" />
-                    <div className="composer-inner">
-                        <div className="skeleton-input" />
-                        <div className="skeleton-send" />
-                    </div>
-                </div>
-            </form>
         </section>
     );
 }
@@ -623,7 +604,7 @@ function Chat() {
     // =================================================
 
     if (sessionLoading) {
-        return <ChatSkeleton />;
+        return <ChatSetupSkeleton />;
     }
 
 
