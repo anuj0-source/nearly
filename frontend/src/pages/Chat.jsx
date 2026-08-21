@@ -8,7 +8,7 @@ import {
 } from "lucide-react";
 import AnonymousAvatar from "../components/AnonymousAvatar";
 import GhostMark from "../components/GhostMark";
-import { anonymousPeople, starterMessages } from "../data/mockData";
+import { anonymousPeople } from "../data/mockData";
 import { useNavigate } from "react-router-dom";
 
 
@@ -180,6 +180,9 @@ function Chat() {
     const [sessionLoading, setSessionLoading] =
         useState(true);
 
+    const [socketReady, setSocketReady] =
+        useState(false);
+
 
     // =================================================
     // REFS
@@ -192,6 +195,9 @@ function Chat() {
         useRef(null);
 
     const replyTimerRef =
+        useRef(null);
+
+    const websocketRef =
         useRef(null);
 
 
@@ -268,6 +274,87 @@ function Chat() {
 
 
     // =================================================
+    // WEBSOCKET CONNECTION
+    // =================================================
+
+    useEffect(() => {
+
+        if (!session || !BACKEND_URL) {
+            return undefined;
+        }
+
+
+        const websocketUrl =
+            `${BACKEND_URL.replace(/^http/, "ws")}/api/chat/ws`;
+
+        const websocket =
+            new WebSocket(websocketUrl);
+
+        websocketRef.current = websocket;
+
+
+        websocket.onopen = () =>
+            setSocketReady(true);
+
+
+        websocket.onclose = () =>
+            setSocketReady(false);
+
+
+        websocket.onerror = () =>
+            setSocketReady(false);
+
+
+        websocket.onmessage = (event) => {
+
+            try {
+
+                const payload =
+                    JSON.parse(event.data);
+
+
+                if (payload.type === "match_found") {
+
+                    if (payload.match?.name && payload.match?.avatar) {
+                        setMatch(payload.match);
+                    }
+
+                    setMessages([]);
+
+                    setChatState("chatting");
+
+                    return;
+                }
+
+            } catch {
+
+                // Chat messages from the existing backend are plain text.
+                setMessages(
+                    (current) => [
+                        ...current,
+
+                        createChatMessage({
+                            idPrefix: "received",
+                            sender: "them",
+                            text: event.data,
+                        }),
+                    ]
+                );
+            }
+        };
+
+
+        return () => {
+
+            websocket.close();
+
+            websocketRef.current = null;
+        };
+
+    }, [session]);
+
+
+    // =================================================
     // CLEANUP REPLY TIMER
     // =================================================
 
@@ -283,52 +370,8 @@ function Chat() {
 
 
     // =================================================
-    // MOCK MATCHING
+    // MATCHING IS DRIVEN BY THE BACKEND'S match_found EVENT
     // =================================================
-
-    useEffect(() => {
-
-        if (chatState !== "matching") {
-            return undefined;
-        }
-
-
-        const timer =
-            window.setTimeout(() => {
-
-                const next =
-                    anonymousPeople[
-                        Math.floor(
-                            Math.random() *
-                            anonymousPeople.length
-                        )
-                    ];
-
-
-                setMatch(next);
-
-
-                setMessages([
-                    createChatMessage({
-                        idPrefix: next.id,
-                        sender:
-                            starterMessages[0].sender,
-                        text:
-                            starterMessages[0].text,
-                    }),
-                ]);
-
-
-                setChatState("chatting");
-
-            }, 3000);
-
-
-        return () =>
-            window.clearTimeout(timer);
-
-    }, [chatState]);
-
 
     // =================================================
     // SCROLL WHEN MESSAGES CHANGE
@@ -461,13 +504,42 @@ function Chat() {
     // START MATCHING
     // =================================================
 
-    function startMatching() {
+    async function startMatching() {
 
         stopTyping();
 
         setShowMenu(false);
 
+        if (!socketReady) {
+            return;
+        }
+
+
         setChatState("matching");
+
+
+        try {
+
+            const response =
+                await fetch(
+                    `${BACKEND_URL}/api/chat/match`,
+                    {
+                        method: "GET",
+                        credentials: "include",
+                    }
+                );
+
+
+            if (!response.ok) {
+                throw new Error("Unable to start matchmaking");
+            }
+
+        } catch (error) {
+
+            console.error("Matchmaking failed:", error);
+
+            setChatState("setup");
+        }
     }
 
 
@@ -475,7 +547,7 @@ function Chat() {
     // END CHAT
     // =================================================
 
-    function endChat() {
+    async function endChat() {
 
         stopTyping();
 
@@ -484,6 +556,22 @@ function Chat() {
         setMessage("");
 
         setShowMenu(false);
+
+
+        try {
+
+            await fetch(
+                `${BACKEND_URL}/api/chat/match/cancel`,
+                {
+                    method: "GET",
+                    credentials: "include",
+                }
+            );
+
+        } catch (error) {
+
+            console.error("Unable to cancel matchmaking:", error);
+        }
 
         setChatState("setup");
     }
@@ -493,7 +581,7 @@ function Chat() {
     // NEXT MATCH
     // =================================================
 
-    function nextMatch() {
+    async function nextMatch() {
 
         stopTyping();
 
@@ -503,7 +591,7 @@ function Chat() {
 
         setShowMenu(false);
 
-        setChatState("matching");
+        await startMatching();
     }
 
 
@@ -541,8 +629,12 @@ function Chat() {
         setMessage("");
 
 
-        // Fake typing response
-        setIsTyping(true);
+        if (websocketRef.current?.readyState !== WebSocket.OPEN) {
+            return;
+        }
+
+
+        websocketRef.current.send(trimmed);
 
 
         window.requestAnimationFrame(
@@ -560,26 +652,6 @@ function Chat() {
         );
 
 
-        replyTimerRef.current =
-            window.setTimeout(() => {
-
-                setIsTyping(false);
-
-
-                setMessages(
-                    (current) => [
-                        ...current,
-
-                        createChatMessage({
-                            idPrefix: "reply",
-                            sender: "them",
-                            text:
-                                "Nice! I'm into that too.",
-                        }),
-                    ]
-                );
-
-            }, 1400);
     }
 
 
