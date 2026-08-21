@@ -5,6 +5,7 @@ from database import get_db
 from sqlalchemy import select
 from models.user import AnonymousSession
 import uuid
+import json
 from datetime import datetime
 
 router=APIRouter(
@@ -28,11 +29,11 @@ class ConnectionManager():
 
         self.connections[session_id]=websocket
 
-    async def disconnect(self,session_id):
-        websocket = self.connections.get(session_id)
+    async def disconnect(self,session_id,websocket=None):
+        current = self.connections.get(session_id)
 
-        if websocket:
-            await websocket.close()
+        if websocket is None or current is websocket:
+            await current.close()
             self.connections.pop(session_id, None)
 
 
@@ -43,7 +44,7 @@ class ConnectionManager():
             await websocket.send_text(message)
 
     async def send_json(self,session_id,json):
-        websocket=self.connections[session_id]
+        websocket=self.connections.get(session_id)
 
         if websocket:
             await websocket.send_json(json)
@@ -152,7 +153,7 @@ async def cancel_match(session_id: str | None = Cookie(default=None)):
 @router.websocket("/ws")
 async def chat_websocket(websocket: WebSocket, session_id: str | None = Cookie(default=None)):
 
-    if not session_id or session_id in manager.connections:
+    if not session_id:
         await websocket.close()
         return
 
@@ -160,14 +161,25 @@ async def chat_websocket(websocket: WebSocket, session_id: str | None = Cookie(d
 
     try:
         while True:
-            message=await websocket.receive_text()
+            text = await websocket.receive_text()
 
-            matched_user=matching[session_id]
+            if not text:
+                continue
+
+            try:
+                payload = json.loads(text)
+            except json.JSONDecodeError:
+                continue
+
+            matched_user = matching.get(session_id)
 
             if not matched_user:
                 continue
 
-            await manager.send_message(matched_user,message)
+            await manager.send_json(
+                    matched_user,
+                    payload
+            )
             
     except WebSocketDisconnect:
-        await manager.disconnect(session_id)
+        await manager.disconnect(session_id, websocket)

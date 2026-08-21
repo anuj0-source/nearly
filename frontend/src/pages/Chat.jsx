@@ -197,6 +197,9 @@ function Chat() {
     const replyTimerRef =
         useRef(null);
 
+    const typingTimerRef =
+        useRef(null);
+
     const websocketRef =
         useRef(null);
 
@@ -277,81 +280,103 @@ function Chat() {
     // WEBSOCKET CONNECTION
     // =================================================
 
-    useEffect(() => {
+    function connectWebSocket() {
 
-        if (!session || !BACKEND_URL) {
-            return undefined;
+        // Close any existing socket cleanly before opening a new one.
+        if (websocketRef.current) {
+            websocketRef.current.onclose = null;
+            websocketRef.current.close();
+            websocketRef.current = null;
         }
 
 
-        const websocketUrl =
-            `${BACKEND_URL.replace(/^http/, "ws")}/api/chat/ws`;
+        return new Promise((resolve, reject) => {
 
-        const websocket =
-            new WebSocket(websocketUrl);
+            const websocketUrl =
+                `${BACKEND_URL.replace(/^http/, "ws")}/api/chat/ws`;
 
-        websocketRef.current = websocket;
+            const websocket =
+                new WebSocket(websocketUrl);
 
-
-        websocket.onopen = () =>
-            setSocketReady(true);
+            websocketRef.current = websocket;
 
 
-        websocket.onclose = () =>
-            setSocketReady(false);
+            websocket.onopen = () => {
+                setSocketReady(true);
+                resolve(websocket);
+            };
 
 
-        websocket.onerror = () =>
-            setSocketReady(false);
+            websocket.onclose = () =>
+                setSocketReady(false);
 
 
-        websocket.onmessage = (event) => {
-
-            try {
-
-                const payload =
-                    JSON.parse(event.data);
+            websocket.onerror = () => {
+                setSocketReady(false);
+                reject(new Error("WebSocket connection failed"));
+            };
 
 
-                if (payload.type === "match_found") {
+            websocket.onmessage = (event) => {
 
-                    if (payload.match?.name && payload.match?.avatar) {
-                        setMatch(payload.match);
+                try {
+
+                    const payload =
+                        JSON.parse(event.data);
+
+
+                    if (payload.type === "match_found") {
+
+                        if (payload.match?.name && payload.match?.avatar) {
+                            setMatch(payload.match);
+                        }
+
+                        setMessages([]);
+
+                        setChatState("chatting");
+
+                        return;
                     }
 
-                    setMessages([]);
 
-                    setChatState("chatting");
+                    if (payload.type === "typing") {
+                        setIsTyping(Boolean(payload.is_typing));
+                        return;
+                    }
 
-                    return;
+
+                    if (payload.type === "chat_message") {
+                        setMessages(
+                            (current) => [
+                                ...current,
+
+                                createChatMessage({
+                                    idPrefix: "received",
+                                    sender: "them",
+                                    text: payload.text,
+                                }),
+                            ]
+                        );
+                    }
+
+                } catch {
+
+                    // Fallback for plain-text messages.
+                    setMessages(
+                        (current) => [
+                            ...current,
+
+                            createChatMessage({
+                                idPrefix: "received",
+                                sender: "them",
+                                text: event.data,
+                            }),
+                        ]
+                    );
                 }
-
-            } catch {
-
-                // Chat messages from the existing backend are plain text.
-                setMessages(
-                    (current) => [
-                        ...current,
-
-                        createChatMessage({
-                            idPrefix: "received",
-                            sender: "them",
-                            text: event.data,
-                        }),
-                    ]
-                );
-            }
-        };
-
-
-        return () => {
-
-            websocket.close();
-
-            websocketRef.current = null;
-        };
-
-    }, [session]);
+            };
+        });
+    }
 
 
     // =================================================
@@ -496,6 +521,15 @@ function Chat() {
             replyTimerRef.current
         );
 
+        // Cancel pending debounce and immediately tell the peer we stopped.
+        window.clearTimeout(typingTimerRef.current);
+
+        if (websocketRef.current?.readyState === WebSocket.OPEN) {
+            websocketRef.current.send(
+                JSON.stringify({ type: "typing", is_typing: false })
+            );
+        }
+
         setIsTyping(false);
     }
 
@@ -510,7 +544,7 @@ function Chat() {
 
         setShowMenu(false);
 
-        if (!socketReady) {
+        if (!session || !BACKEND_URL) {
             return;
         }
 
@@ -519,6 +553,9 @@ function Chat() {
 
 
         try {
+
+            await connectWebSocket();
+
 
             const response =
                 await fetch(
@@ -634,7 +671,9 @@ function Chat() {
         }
 
 
-        websocketRef.current.send(trimmed);
+        websocketRef.current.send(
+            JSON.stringify({ type: "chat_message", text: trimmed })
+        );
 
 
         window.requestAnimationFrame(
@@ -1180,11 +1219,28 @@ function Chat() {
                         <input
                             ref={messageInputRef}
                             value={message}
-                            onChange={(event) =>
+                            onChange={(event) => {
                                 setMessage(
                                     event.target.value
-                                )
-                            }
+                                );
+
+                                // Notify the peer that we are typing.
+                                if (websocketRef.current?.readyState === WebSocket.OPEN) {
+                                    websocketRef.current.send(
+                                        JSON.stringify({ type: "typing", is_typing: true })
+                                    );
+                                }
+
+                                // Send typing:false after 1.5 s of inactivity.
+                                window.clearTimeout(typingTimerRef.current);
+                                typingTimerRef.current = window.setTimeout(() => {
+                                    if (websocketRef.current?.readyState === WebSocket.OPEN) {
+                                        websocketRef.current.send(
+                                            JSON.stringify({ type: "typing", is_typing: false })
+                                        );
+                                    }
+                                }, 1500);
+                            }}
                             onFocus={
                                 handleMessageFocus
                             }
