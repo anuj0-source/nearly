@@ -32,8 +32,11 @@ class ConnectionManager():
     async def disconnect(self,session_id,websocket=None):
         current = self.connections.get(session_id)
 
-        if websocket is None or current is websocket:
-            await current.close()
+        if current and (websocket is None or current is websocket):
+            try:
+                await current.close()
+            except RuntimeError:
+                pass
             self.connections.pop(session_id, None)
 
 
@@ -74,7 +77,7 @@ async def matchmaking(
         select(AnonymousSession)
         .where(AnonymousSession.session_id == session_id)
     )
-
+    
     if not user:
         raise HTTPException(
             status_code=404,
@@ -183,3 +186,9 @@ async def chat_websocket(websocket: WebSocket, session_id: str | None = Cookie(d
             
     except WebSocketDisconnect:
         await manager.disconnect(session_id, websocket)
+
+        # Notify the partner that this user left, then clean up both sides.
+        other = matching.pop(session_id, None)
+        if other:
+            matching.pop(other, None)
+            await manager.send_json(other, {"type": "user_left"})

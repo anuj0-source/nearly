@@ -3628,23 +3628,215 @@ a { color: inherit; text-decoration: none; }
     .conversation .composer-row { max-width: 820px; }
 }
 
+@media (max-width: 700px) {
+    .page-head { gap: 12px; margin-bottom: 22px; }
+    .home-visual { width: 180px; height: 180px; }
+    .home-visual .ring.r1 { width: 110px; height: 110px; }
+    .home-visual .ring.r2 { width: 150px; height: 150px; }
+    .home-visual .ring.r3 { width: 180px; height: 180px; }
+    .home-visual .core { width: 92px; height: 92px; }
+
+    .topbar { padding: 0 16px; min-height: 52px; }
+
+    .nearby-radar { width: min(280px, 90%); }
+
+    .id-card { padding: 18px; }
+    .id-row h2 { font-size: 17px; }
+    .set-row, .signin-cta { padding: 12px 16px; }
+
+    .invite-hero { padding: 22px; }
+    .invite-box  { padding: 16px; }
+}
+
 @media (max-width: 540px) {
-    .conversation .composer { padding: 9px 12px 12px; }
-    .conversation .composer-row { gap: 8px; }
-    .conversation .composer-inner { min-height: 50px; padding: 4px 5px 4px 12px; }
-    .conversation .next-btn {
-        flex: 0 0 42px;
-        width: 42px;
-        height: 42px;
-        padding: 0;
-        justify-content: center;
-        border-radius: 14px;
-        border-color: color-mix(in srgb, var(--paper) 44%, var(--accent));
-        background: linear-gradient(135deg, color-mix(in srgb, var(--paper) 66%, var(--accent-soft)), color-mix(in srgb, var(--surface) 74%, transparent));
-        color: var(--accent);
-        box-shadow: 0 8px 18px -16px color-mix(in srgb, var(--accent) 80%, transparent), inset 0 1px 0 color-mix(in srgb, var(--paper) 82%, transparent);
+    .home { padding: 16px 16px 22px; }
+
+    .home-visual { width: 160px; height: 160px; }
+    .home-headline { font-size: 1.6rem; }
+    .home-sub { font-size: 12.5px; }
+
+    .chat-setup { padding: 16px 16px calc(20px + var(--bn-h)); gap: 16px; }
+    .chat-setup-card { padding: 16px; }
+    .chat-setup-visual { max-width: 230px; }
+    .match-visual { width: min(180px, 60vw); height: min(180px, 60vw); margin: 22px auto 18px; }
+
+    .page { padding-inline: 16px; padding-bottom: calc(72px + var(--bn-h)); }
+    .page-head { flex-direction: column; align-items: flex-start; }
+    .h1 { font-size: 1.6rem; }
+    .match-card {
+        grid-template-columns: 48px minmax(0, 1fr);
+        gap: 10px;
+        padding: 12px;
+        border-radius: 18px;
     }
-    .conversation .next-btn span { display: none; }
-    .conversation .next-btn svg { width: 18px; height: 18px; }
-    .conversation .send-btn { width: 40px; height: 40px; }
+    .match-avatar { width: 48px; height: 48px; border-radius: 16px; }
+    .match-avatar .av { width: 46px; height: 46px; }
+    .match-name { font-size: 14px; }
+    .nearby-card { padding: 14px; border-radius: 18px; }
+    .nearby-grid { grid-template-columns: 1fr; }
+    .nearby-head { gap: 10px; }
+    .nearby-identity { grid-template-columns: 46px minmax(0, 1fr); gap: 10px; }
+    .nearby-avatar { width: 46px; height: 46px; border-radius: 16px; }
+    .nearby-avatar .av { width: 44px; height: 44px; }
+    .nearby-meta h3 { font-size: 14px; }
+    .nearby-status { padding: 5px 7px; font-size: 9.5px; }
+
+    .conv-top { padding: 9px 14px; }
+    .conv-back { display: inline-flex; }
+    .messages { padding: 14px; }
+    .bubble { max-width: 78%; }
+    .composer { padding: 9px 12px; }
+    .composer-inner { gap: 6px; }
+    .send-btn { width: 36px; height: 36px; }
+
+    .login { padding: 16px; }
+    .login-card { padding: 24px 18px; }
+    .login-theme { top: 14px; right: 14px; }
+
+    .stats { grid-template-columns: repeat(2, 1fr); }
+    .stats > div:last-child { grid-column: span 2; }
+}
+
+
+/* =============================================================
+   NOTICE — USER LEFT BANNER
+   ============================================================= */
+
+
+/* Warm amber warning tokens (scoped, no global pollution) */
+:root {
+    --warning:      #D97706;
+    --warning-soft: rgba(217, 119, 6, 0.08);
+    --warning-dim:  rgba(217, 119, 6, 0.16);
+    --warning-line: rgba(217, 119, 6, 0.22);
+}
+.theme-dark {
+    --warning:      #FBB042;
+    --warning-soft: rgba(251, 176, 66, 0.07);
+    --warning-dim:  rgba(251, 176, 66, 0.13);
+    --warning-line: rgba(251, 176, 66, 0.20);
+}
+
+/* Base notice — the green "matched" banner already in Chat.jsx uses this */
+.conversation .messages .notice {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin: 8px 0;
+    padding: 12px 16px;
+    border-radius: var(--r-lg);
+    background: var(--surface);
+    border: 1px solid var(--line);
+    animation: notice-in 0.28s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* ── Warning variant ── */
+.conversation .messages .notice-warning {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0;
+    padding: 0;
+    overflow: hidden;
+    background: color-mix(in srgb, var(--paper) 94%, var(--warning));
+    border: 1px solid var(--warning-line);
+    box-shadow:
+        0 0 0 4px var(--warning-soft),
+        0 4px 24px -8px color-mix(in srgb, var(--warning) 18%, transparent);
+    animation: notice-warning-in 0.38s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* Coloured top-edge stripe */
+.conversation .messages .notice-warning::before {
+    content: "";
+    display: block;
+    height: 3px;
+    background: linear-gradient(90deg, var(--warning), color-mix(in srgb, var(--warning) 55%, transparent));
+    border-radius: var(--r-lg) var(--r-lg) 0 0;
+    flex-shrink: 0;
+}
+
+/* Inner content wrapper */
+.conversation .messages .notice-warning .notice-copy {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    padding: 14px 16px 10px;
+}
+
+.conversation .messages .notice-warning .notice-copy strong {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--warning);
+    letter-spacing: -0.01em;
+}
+
+/* Warning icon dot */
+.conversation .messages .notice-warning .notice-copy strong::before {
+    content: "";
+    flex-shrink: 0;
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--warning);
+    box-shadow: 0 0 0 3px var(--warning-dim);
+}
+
+.conversation .messages .notice-warning .notice-copy p {
+    margin: 0;
+    font-size: 12.5px;
+    color: var(--muted);
+    line-height: 1.45;
+    padding-left: 14px; /* align under text, after icon */
+}
+
+/* CTA row at the bottom */
+.conversation .messages .notice-warning > .btn {
+    align-self: stretch;
+    margin: 0 16px 14px;
+    padding: 9px 16px;
+    border-radius: var(--r-md);
+    font-size: 12.5px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    color: var(--warning);
+    background: var(--warning-soft);
+    border: 1px solid var(--warning-line);
+    transition: background 0.15s ease, box-shadow 0.15s ease, transform 0.12s ease;
+    cursor: pointer;
+}
+
+.conversation .messages .notice-warning > .btn:hover {
+    background: var(--warning-dim);
+    box-shadow: 0 4px 12px -6px color-mix(in srgb, var(--warning) 30%, transparent);
+    transform: translateY(-1px);
+}
+
+.conversation .messages .notice-warning > .btn:active {
+    transform: translateY(0);
+    background: var(--warning-dim);
+}
+
+/* Disabled composer styling when partner has left */
+.conversation .composer-inner:has(input:disabled) {
+    opacity: 0.5;
+    pointer-events: none;
+}
+
+.conversation .composer input:disabled::placeholder {
+    color: var(--faint);
+    font-style: italic;
+}
+
+/* ── Entrance animations ── */
+@keyframes notice-in {
+    from { opacity: 0; transform: translateY(6px) scale(0.98); }
+    to   { opacity: 1; transform: translateY(0)   scale(1); }
+}
+
+@keyframes notice-warning-in {
+    from { opacity: 0; transform: translateY(10px) scale(0.97); }
+    to   { opacity: 1; transform: translateY(0)    scale(1); }
 }

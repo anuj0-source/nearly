@@ -169,6 +169,9 @@ function Chat() {
     const [isTyping, setIsTyping] =
         useState(false);
 
+    const [partnerLeft, setPartnerLeft] =
+        useState(false);
+
 
     // =================================================
     // SESSION STATE
@@ -357,6 +360,20 @@ function Chat() {
                                 }),
                             ]
                         );
+                        return;
+                    }
+
+
+                    if (payload.type === "user_left") {
+                        setIsTyping(false);
+                        setPartnerLeft(true);
+
+                        // Close our side of the socket cleanly.
+                        websocket.onclose = null;
+                        websocket.close();
+                        websocketRef.current = null;
+                        setSocketReady(false);
+                        return;
                     }
 
                 } catch {
@@ -543,6 +560,7 @@ function Chat() {
         stopTyping();
 
         setShowMenu(false);
+        setPartnerLeft(false);
 
         if (!session || !BACKEND_URL) {
             return;
@@ -594,6 +612,16 @@ function Chat() {
 
         setShowMenu(false);
 
+
+        // Explicitly close the WebSocket so the backend fires WebSocketDisconnect
+        // and cleans up connections + matching entries.
+        if (websocketRef.current) {
+            websocketRef.current.onclose = null; // suppress the generic onclose handler
+            websocketRef.current.close();
+            websocketRef.current = null;
+        }
+
+        setSocketReady(false);
 
         try {
 
@@ -1181,6 +1209,39 @@ function Chat() {
 
                 )}
 
+
+                {partnerLeft && (
+
+                    <div
+                        className="notice notice-warning"
+                        role="alert"
+                    >
+
+                        <div className="notice-copy">
+
+                            <strong>
+                                {match.name} has left the chat
+                            </strong>
+
+                            <p>
+                                The conversation has ended. Start a new one?
+                            </p>
+
+                        </div>
+
+
+                        <button
+                            className="btn btn-quiet"
+                            type="button"
+                            onClick={nextMatch}
+                        >
+                            Find next match
+                        </button>
+
+                    </div>
+
+                )}
+
             </div>
 
 
@@ -1191,6 +1252,7 @@ function Chat() {
             <form
                 className="composer"
                 onSubmit={sendMessage}
+                aria-disabled={partnerLeft}
             >
 
                 <div className="composer-row">
@@ -1219,6 +1281,7 @@ function Chat() {
                         <input
                             ref={messageInputRef}
                             value={message}
+                            disabled={partnerLeft}
                             onChange={(event) => {
                                 setMessage(
                                     event.target.value
@@ -1244,7 +1307,7 @@ function Chat() {
                             onFocus={
                                 handleMessageFocus
                             }
-                            placeholder="Say hello..."
+                            placeholder={partnerLeft ? "Chat ended" : "Say hello..."}
                             aria-label="Message"
                         />
 
