@@ -3963,3 +3963,258 @@ a { color: inherit; text-decoration: none; }
     transform: translate(-50%, 0);
     pointer-events: auto;
 }
+
+/* =============================================================
+   CONVERSATIONS PANEL — Instagram / iMessage style
+   ============================================================= */
+
+.conv-panel {
+    position: absolute;
+    top: calc(100% + 10px);
+    right: 0;
+    width: 320px;
+    background: var(--paper);
+    border: 1px solid var(--line-strong);
+    border-radius: 18px;
+    box-shadow:
+        0 8px 32px -8px rgba(0, 0, 0, 0.18),
+        0 2px 8px -2px rgba(0, 0, 0, 0.08),
+        0 0 0 1px rgba(255, 255, 255, 0.04) inset;
+    z-index: 200;
+    overflow: hidden;
+    -webkit-backdrop-filter: blur(24px) saturate(1.4);
+    backdrop-filter: blur(24px) saturate(1.4);
+    animation: conv-panel-in 0.2s cubic-bezier(0.34, 1.42, 0.64, 1);
+    transform-origin: top right;
+}
+
+@keyframes conv-panel-in {
+    from { opacity: 0; transform: scale(0.92) translateY(-6px); }
+    to   { opacity: 1; transform: scale(1)   translateY(0); }
+}
+
+/* ── Header ── */
+.conv-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 18px 12px;
+    background: linear-gradient(135deg, var(--accent-dim) 0%, transparent 100%);
+    border-bottom: 1px solid var(--line);
+}
+
+.conv-header-left {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+}
+
+.conv-header-icon {
+    width: 28px;
+    height: 28px;
+    display: grid;
+    place-items: center;
+    border-radius: 8px;
+    background: var(--accent);
+    color: #fff;
+    flex-shrink: 0;
+}
+
+.conv-header-title {
+    font-family: var(--brand);
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--ink);
+    letter-spacing: -0.02em;
+}
+
+.conv-header-count {
+    font-size: 11px;
+    font-weight: 700;
+    font-family: var(--sans);
+    line-height: 1;
+    padding: 3px 7px;
+    border-radius: 20px;
+    background: var(--accent);
+    color: #fff;
+    letter-spacing: 0.01em;
+}
+
+/* ── List ── */
+.conv-list {
+    max-height: 340px;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding: 6px 0;
+}
+
+.conv-list::-webkit-scrollbar { width: 4px; }
+.conv-list::-webkit-scrollbar-track { background: transparent; }
+.conv-list::-webkit-scrollbar-thumb { background: var(--line-strong); border-radius: 2px; }
+
+/* ── Item ── */
+.conv-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 16px;
+    cursor: pointer;
+    transition: background 0.15s ease;
+    position: relative;
+}
+
+.conv-item:hover {
+    background: var(--accent-soft);
+}
+
+.conv-item:hover .conv-avatar {
+    transform: scale(1.06);
+}
+
+/* ── Avatar — colour cycles through accent palette ── */
+.conv-avatar {
+    width: 42px;
+    height: 42px;
+    border-radius: 50%;
+    display: grid;
+    place-items: center;
+    font-family: var(--brand);
+    font-size: 14px;
+    font-weight: 700;
+    color: #fff;
+    flex-shrink: 0;
+    transition: transform 0.18s ease;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.14);
+    position: relative;
+    overflow: hidden;
+}
+
+.conv-avatar[data-seed="0"] { background: linear-gradient(135deg, #7C6BB5, #9B8DD1); }
+.conv-avatar[data-seed="1"] { background: linear-gradient(135deg, #C9A07A, #e0b98d); }
+.conv-avatar[data-seed="2"] { background: linear-gradient(135deg, #6F8FA8, #8BAABD); }
+.conv-avatar[data-seed="3"] { background: linear-gradient(135deg, #B56B9A, #d18ec0); }
+.conv-avatar[data-seed="4"] { background: linear-gradient(135deg, #6BB580, #8dd19c); }
+.conv-avatar[data-seed="5"] { background: linear-gradient(135deg, #B5956B, #d1b18e); }
+
+/* Real avatar image fills the circle */
+.conv-avatar-img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    border-radius: 50%;
+    display: block;
+}
+
+/* Fallback initials layer (shown when no avatar or image error) */
+.conv-avatar-fallback {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: var(--brand);
+    font-size: 14px;
+    font-weight: 700;
+    color: #fff;
+    border-radius: 50%;
+    position: absolute;
+    top: 0;
+    left: 0;
+}
+
+/* ── Item body ── */
+.conv-item-body {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+}
+
+.conv-item-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.conv-item-name {
+    font-size: 13.5px;
+    font-weight: 600;
+    color: var(--ink);
+    font-family: var(--sans);
+    letter-spacing: -0.01em;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.conv-item-time {
+    font-size: 11px;
+    color: var(--faint);
+    font-family: var(--sans);
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+.conv-item-preview {
+    font-size: 12px;
+    color: var(--muted);
+    font-family: var(--sans);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    display: block;
+}
+
+/* ── Empty state ── */
+.conv-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 36px 20px 32px;
+    text-align: center;
+}
+
+.conv-empty-icon {
+    width: 52px;
+    height: 52px;
+    border-radius: 16px;
+    display: grid;
+    place-items: center;
+    background: var(--accent-dim);
+    color: var(--accent);
+    margin-bottom: 4px;
+}
+
+.conv-empty-title {
+    margin: 0;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--ink);
+    font-family: var(--brand);
+}
+
+.conv-empty-sub {
+    margin: 0;
+    font-size: 12px;
+    color: var(--muted);
+    font-family: var(--sans);
+    line-height: 1.5;
+    max-width: 200px;
+}
+
+/* ── Dark theme tweaks ── */
+.theme-dark .conv-panel {
+    box-shadow:
+        0 16px 48px -12px rgba(0, 0, 0, 0.72),
+        0 4px 12px -4px rgba(0, 0, 0, 0.44),
+        0 0 0 1px rgba(255, 255, 255, 0.06) inset;
+}
+
+@keyframes spin {
+    from { transform: rotate(0deg); }
+    to   { transform: rotate(360deg); }
+}

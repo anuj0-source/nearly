@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { MessageCircle, UserMinus } from "lucide-react";
+import { MessageCircle, UserMinus, Loader } from "lucide-react";
 import AnonymousAvatar from "../components/AnonymousAvatar";
 
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
@@ -8,6 +8,7 @@ const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
 function Friends() {
     const navigate = useNavigate();
     const [friends, setFriends] = useState([]);
+    const [loadingChat, setLoadingChat] = useState(null); // session_id of friend being opened
 
     useEffect(() => {
         async function fetchFriends() {
@@ -46,6 +47,39 @@ function Friends() {
         }
     }
 
+    async function handleOpenChat(e, friend) {
+        e.stopPropagation();
+        setLoadingChat(friend.session_id);
+        try {
+            const res = await fetch(
+                `${BACKEND_URL}/api/messages/friend-messages/${friend.session_id}`,
+                { credentials: "include" }
+            );
+            if (res.ok) {
+                const data = await res.json();
+                // Build a conv object matching the shape Chat.jsx history view expects
+                const conv = {
+                    conversation_id: data.conversation_id,
+                    partner_name: data.partner_name || friend.name,
+                    partner_avatar: data.partner_avatar || friend.avatar,
+                    // pre-mapped messages so Chat.jsx doesn't need to re-fetch
+                    prefetchedMessages: data.messages,
+                };
+                navigate("/chat", { state: { openConv: conv } });
+            } else if (res.status === 404) {
+                // No conversation yet — just go to chat
+                navigate("/chat");
+            } else {
+                console.error("Failed to load conversation");
+            }
+        } catch (err) {
+            console.error("Error opening chat:", err);
+            navigate("/chat");
+        } finally {
+            setLoadingChat(null);
+        }
+    }
+
     return (
         <div className="page">
             <header className="page-head">
@@ -64,10 +98,6 @@ function Friends() {
                         <article
                             key={person.id}
                             className="friend-card"
-                            onClick={() => navigate("/chat")}
-                            onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && navigate("/chat")}
-                            role="button"
-                            tabIndex={0}
                             style={{ "--i": i }}
                         >
                             <div className="friend-card-avatar">
@@ -89,19 +119,29 @@ function Friends() {
                             </div>
 
                             <div style={{ display: "flex", gap: 8 }}>
-                                <button 
-                                    className="friend-card-action danger" 
-                                    type="button" 
-                                    aria-label="Remove friend" 
+                                <button
+                                    className="friend-card-action danger"
+                                    type="button"
+                                    aria-label="Remove friend"
                                     data-tooltip="Remove friend"
                                     onClick={(e) => handleRemoveFriend(e, person.session_id)}
                                     style={{ border: "none" }}
                                 >
                                     <UserMinus size={20} className="friend-card-icon" />
                                 </button>
-                                <div className="friend-card-action primary">
-                                    <MessageCircle size={20} className="friend-card-icon" />
-                                </div>
+                                <button
+                                    className="friend-card-action primary"
+                                    type="button"
+                                    aria-label="Open conversation"
+                                    data-tooltip="Open conversation"
+                                    onClick={(e) => handleOpenChat(e, person)}
+                                    disabled={loadingChat === person.session_id}
+                                >
+                                    {loadingChat === person.session_id
+                                        ? <Loader size={18} className="friend-card-icon" style={{ animation: "spin 1s linear infinite" }} />
+                                        : <MessageCircle size={20} className="friend-card-icon" />
+                                    }
+                                </button>
                             </div>
                         </article>
                     ))

@@ -9,13 +9,13 @@ import {
     Bell,
     Check,
     X,
-    Mail,
+    MessageCircle,
     BadgeCheck,
 } from "lucide-react";
 import AnonymousAvatar from "../components/AnonymousAvatar";
 import GhostMark from "../components/GhostMark";
 import { anonymousPeople } from "../data/mockData";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 
 const playMatchSound = () => {
     try {
@@ -202,6 +202,7 @@ function ChatSetupSkeleton() {
 function Chat() {
 
     const navigate = useNavigate();
+    const location = useLocation();
 
 
     // =================================================
@@ -231,6 +232,12 @@ function Chat() {
     const [friendRequests, setFriendRequests] =
         useState([]);
 
+    const [conversations, setConversations] = useState([]);
+    const [showConversations, setShowConversations] = useState(false);
+    const [activeConv, setActiveConv] = useState(null);       // selected conversation object
+    const [historyMessages, setHistoryMessages] = useState([]); // loaded messages for history view
+    const [historyLoading, setHistoryLoading] = useState(false);
+
     const [showRequests, setShowRequests] =
         useState(false);
 
@@ -258,6 +265,7 @@ function Chat() {
 
     const messagesRef =
         useRef(null);
+    const conversationsDropdownRef = useRef(null);
 
     const messageInputRef =
         useRef(null);
@@ -284,12 +292,43 @@ function Chat() {
             if (requestsDropdownRef.current && !requestsDropdownRef.current.contains(event.target)) {
                 setShowRequests(false);
             }
+            if (conversationsDropdownRef.current && !conversationsDropdownRef.current.contains(event.target)) {
+                setShowConversations(false);
+            }
         }
         document.addEventListener("mousedown", handleClickOutside);
         return () => {
             document.removeEventListener("mousedown", handleClickOutside);
         };
     }, []);
+
+
+    // =================================================
+    // AUTO-OPEN CONV FROM ROUTE STATE (Friends page)
+    // =================================================
+
+    useEffect(() => {
+        if (sessionLoading) return;           // wait until session is ready
+        const openConv = location.state?.openConv;
+        if (!openConv) return;
+
+        setActiveConv(openConv);
+
+        // Messages were pre-fetched by Friends.jsx — map them now
+        const prefetched = openConv.prefetchedMessages || [];
+        const mapped = prefetched.map(m => ({
+            id: String(m.id),
+            sender: m.sender_id === session?.session_id ? "me" : "them",
+            text: m.message,
+            createdAt: m.created_at,
+        }));
+        setHistoryMessages(mapped);
+        setHistoryLoading(false);
+        setChatState("history");
+
+        // Clear the state so a refresh doesn't re-trigger
+        window.history.replaceState({}, "");
+    }, [sessionLoading]); // eslint-disable-line react-hooks/exhaustive-deps
 
 
     // =================================================
@@ -779,6 +818,58 @@ function Chat() {
         setShowRequests(true);
     }
 
+    async function fetchConversations() {
+        try {
+            const response = await fetch(`${BACKEND_URL}/api/messages/conversations`, {
+                credentials: "include",
+            });
+            if (response.ok) {
+                const data = await response.json();
+                setConversations(data);
+            }
+        } catch (error) {
+            console.error("Error fetching conversations:", error);
+        }
+    }
+
+    async function toggleConversations() {
+        if (showConversations) {
+            setShowConversations(false);
+            return;
+        }
+        await fetchConversations();
+        setShowConversations(true);
+    }
+
+    async function openConversation(conv) {
+        setShowConversations(false);
+        setActiveConv(conv);
+        setHistoryMessages([]);
+        setHistoryLoading(true);
+        try {
+            const res = await fetch(
+                `${BACKEND_URL}/api/messages/messages/${conv.conversation_id}`,
+                { credentials: "include" }
+            );
+            if (res.ok) {
+                const data = await res.json();
+                // Map backend Message shape → local message format
+                const mapped = data.map(m => ({
+                    id: String(m.id),
+                    sender: m.sender_id === session?.session_id ? "me" : "them",
+                    text: m.message,
+                    createdAt: m.created_at,
+                }));
+                setHistoryMessages(mapped);
+            }
+        } catch (err) {
+            console.error("Failed to load conversation history:", err);
+        } finally {
+            setHistoryLoading(false);
+        }
+        setChatState("history");
+    }
+
     async function acceptFriendRequest(friendId) {
         try {
             const response = await fetch(`${BACKEND_URL}/api/friend/accept/${friendId}`, {
@@ -970,9 +1061,85 @@ function Chat() {
         return (
             <section className="chat-setup">
                 <div style={{ position: "absolute", top: 24, right: 24, display: "flex", gap: 12, zIndex: 10 }}>
-                    <button className="ix-btn" type="button" aria-label="Messages" data-tooltip="Messages">
-                        <Mail size={22} strokeWidth={1.75} />
-                    </button>
+                    <div ref={conversationsDropdownRef} style={{ position: "relative" }}>
+                        <button className="ix-btn" type="button" aria-label="Messages" {...(!showConversations ? { "data-tooltip": "Messages" } : {})} onClick={toggleConversations}>
+                            <MessageCircle size={22} strokeWidth={1.75} />
+                        </button>
+                        {showConversations && (
+                            <div className="conv-panel">
+                                {/* ── Header ── */}
+                                <div className="conv-header">
+                                    <div className="conv-header-left">
+                                        <div className="conv-header-icon">
+                                            <MessageCircle size={15} strokeWidth={2.2} />
+                                        </div>
+                                        <span className="conv-header-title">Messages</span>
+                                    </div>
+                                    {conversations.length > 0 && (
+                                        <span className="conv-header-count">{conversations.length}</span>
+                                    )}
+                                </div>
+
+                                {/* ── List ── */}
+                                <div className="conv-list">
+                                    {conversations.length === 0 ? (
+                                        <div className="conv-empty">
+                                            <div className="conv-empty-icon">
+                                                <MessageCircle size={28} strokeWidth={1.4} />
+                                            </div>
+                                            <p className="conv-empty-title">No messages yet</p>
+                                            <p className="conv-empty-sub">Start a chat to see your conversations here</p>
+                                        </div>
+                                    ) : (
+                                        conversations.map((conv, i) => {
+                                            const otherId = conv.user1_session_id === session?.session_id ? conv.user2_session_id : conv.user1_session_id;
+                                            const partnerName = conv.partner_name || `Anon ${otherId?.substring(0, 6)}`;
+                                            const partnerAvatar = conv.partner_avatar;
+                                            const initials = partnerName.split(" ").map(w => w[0]).join("").substring(0, 2).toUpperCase();
+                                            const createdDate = new Date(conv.created_at);
+                                            const now = new Date();
+                                            const diffMs = now - createdDate;
+                                            const diffMins = Math.floor(diffMs / 60000);
+                                            const diffHrs = Math.floor(diffMins / 60);
+                                            const diffDays = Math.floor(diffHrs / 24);
+                                            let timeLabel;
+                                            if (diffMins < 1) timeLabel = "just now";
+                                            else if (diffMins < 60) timeLabel = `${diffMins}m ago`;
+                                            else if (diffHrs < 24) timeLabel = `${diffHrs}h ago`;
+                                            else if (diffDays < 7) timeLabel = `${diffDays}d ago`;
+                                            else timeLabel = createdDate.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+
+                                            return (
+                                                <div key={i} className="conv-item" onClick={() => openConversation(conv)} role="button" tabIndex={0} onKeyDown={e => e.key === "Enter" && openConversation(conv)}>
+                                                    <div className="conv-avatar" data-seed={i % 6}>
+                                                        {partnerAvatar ? (
+                                                            <img
+                                                                src={partnerAvatar}
+                                                                alt={partnerName}
+                                                                className="conv-avatar-img"
+                                                                onError={e => { e.currentTarget.style.display = "none"; e.currentTarget.nextSibling.style.display = "flex"; }}
+                                                            />
+                                                        ) : null}
+                                                        <span className="conv-avatar-fallback" style={{ display: partnerAvatar ? "none" : "flex" }}>
+                                                            {initials}
+                                                        </span>
+                                                    </div>
+                                                    <div className="conv-item-body">
+                                                        <div className="conv-item-top">
+                                                            <span className="conv-item-name">{partnerName}</span>
+                                                            <span className="conv-item-time">{timeLabel}</span>
+                                                        </div>
+                                                        <span className="conv-item-preview">Tap to open conversation</span>
+                                                    </div>
+
+                                                </div>
+                                            );
+                                        })
+                                    )}
+                                </div>
+                            </div>
+                        )}
+                    </div>
                     <div ref={requestsDropdownRef} style={{ position: "relative" }}>
                         <button className="ix-btn" style={{ position: "relative" }} type="button" aria-label="Friend requests" {...(!showRequests ? { "data-tooltip": "Friend requests" } : {}) } onClick={toggleFriendRequests}>
                             <ReceiveRequestIcon size={22} strokeWidth={1.75} />
@@ -1146,6 +1313,141 @@ function Chat() {
 
                     </div>
 
+                </div>
+
+            </section>
+        );
+    }
+
+
+    // =================================================
+    // HISTORY VIEW  — read-only past conversation
+    // =================================================
+
+    if (chatState === "history") {
+        const partnerName = activeConv?.partner_name || "Anonymous";
+        const partnerAvatar = activeConv?.partner_avatar;
+
+        return (
+            <section className="conversation">
+
+                <div className="conversation-wallpaper" aria-hidden="true">
+                    <span className="wallpaper-orbit orbit-a" />
+                    <span className="wallpaper-orbit orbit-b" />
+                    <GhostMark className="wallpaper-ghost ghost-a" />
+                    <GhostMark className="wallpaper-ghost ghost-b" />
+                    <GhostMark className="wallpaper-ghost ghost-c" />
+                </div>
+
+                {/* Header */}
+                <header className="conv-top">
+                    <div className="conv-person">
+                        {/* back button */}
+                        <button
+                            className="ix-btn"
+                            type="button"
+                            aria-label="Back"
+                            onClick={() => setChatState("setup")}
+                            style={{ marginRight: 4 }}
+                        >
+                            <ArrowRight size={20} strokeWidth={1.75} style={{ transform: "rotate(180deg)" }} />
+                        </button>
+
+                        {/* avatar */}
+                        <div style={{
+                            width: 36, height: 36, borderRadius: "50%",
+                            overflow: "hidden", flexShrink: 0,
+                            background: "var(--accent-dim)",
+                            display: "grid", placeItems: "center"
+                        }}>
+                            {partnerAvatar
+                                ? <img src={partnerAvatar} alt={partnerName} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                                : <span style={{ fontFamily: "var(--brand)", fontSize: 13, fontWeight: 700, color: "var(--accent)" }}>
+                                    {partnerName.split(" ").map(w => w[0]).join("").substring(0, 2).toUpperCase()}
+                                  </span>
+                            }
+                        </div>
+
+                        <div>
+                            <h3 className="conv-name">{partnerName}</h3>
+                            <p className="conv-meta">Past conversation</p>
+                        </div>
+                    </div>
+
+                    <div style={{ display: "flex", gap: 12 }} />
+                </header>
+
+                {/* Messages */}
+                <div className="messages" ref={messagesRef}>
+
+                    <div className="notice" role="status">
+                        <div className="notice-copy">
+                            <strong>Conversation history with <span className="notice-name">{partnerName}</span></strong>
+                        </div>
+                        <span className="notice-status" aria-hidden="true" />
+                    </div>
+
+                    {historyLoading && (
+                        <div style={{ display: "flex", justifyContent: "center", padding: "32px 0" }}>
+                            <span style={{ color: "var(--muted)", fontFamily: "var(--sans)", fontSize: 13 }}>Loading messages…</span>
+                        </div>
+                    )}
+
+                    {!historyLoading && historyMessages.length === 0 && (
+                        <div style={{ display: "flex", justifyContent: "center", padding: "32px 0" }}>
+                            <span style={{ color: "var(--muted)", fontFamily: "var(--sans)", fontSize: 13 }}>No messages in this conversation.</span>
+                        </div>
+                    )}
+
+                    {historyMessages.map(item => (
+                        <div key={item.id} className={`row ${item.sender === "me" ? "sent" : ""}`}>
+
+                            {item.sender === "them" && (
+                                <div style={{
+                                    width: 32, height: 32, borderRadius: "50%",
+                                    overflow: "hidden", flexShrink: 0,
+                                    background: "var(--accent-dim)",
+                                    display: "grid", placeItems: "center"
+                                }}>
+                                    {partnerAvatar
+                                        ? <img src={partnerAvatar} alt={partnerName} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                                        : <span style={{ fontFamily: "var(--brand)", fontSize: 11, fontWeight: 700, color: "var(--accent)" }}>
+                                            {partnerName.split(" ").map(w => w[0]).join("").substring(0, 2).toUpperCase()}
+                                          </span>
+                                    }
+                                </div>
+                            )}
+
+                            <div className="bubble">
+                                {item.text}
+                                <small>
+                                    <time dateTime={item.createdAt}>
+                                        {messageTimeFormatter.format(new Date(item.createdAt))}
+                                    </time>
+                                </small>
+                            </div>
+
+                        </div>
+                    ))}
+
+                </div>
+
+                {/* Read-only footer */}
+                <div className="composer" style={{ pointerEvents: "none", opacity: 0.45 }}>
+                    <div className="composer-row">
+                        <div className="composer-inner">
+                            <textarea
+                                rows={1}
+                                disabled
+                                placeholder="This is a past conversation"
+                                aria-label="Read-only"
+                                style={{ resize: "none" }}
+                            />
+                            <button className="send-btn" type="button" aria-label="Send" disabled>
+                                <Send size={14} />
+                            </button>
+                        </div>
+                    </div>
                 </div>
 
             </section>

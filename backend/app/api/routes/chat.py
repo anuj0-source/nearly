@@ -89,7 +89,29 @@ async def matchmaking(
     if queue:
         other_session_id = queue.popleft()
 
-        conversation_id:str=str(uuid.uuid4())
+        other_user=db.scalar(select(AnonymousSession).where(AnonymousSession.session_id == other_session_id))
+
+        is_friend = False
+        if other_user and user:
+            is_friend = other_user in user.friends
+
+        if not is_friend:
+            conversation_id:str=str(uuid.uuid4())
+        else:
+            conversation_id=conversation = db.scalar(
+                select(Conversation)
+                .where(
+                    (
+                        (Conversation.user1_session_id == session_id) &
+                        (Conversation.user2_session_id == friend_session_id)
+                    ) |
+                    (
+                        (Conversation.user1_session_id == friend_session_id) &
+                        (Conversation.user2_session_id == session_id)
+                    )
+                )
+            ).conversation_id
+            
 
         conversations.append({
             "conversation_id":conversation_id,
@@ -98,11 +120,6 @@ async def matchmaking(
             "created_at":datetime.now()
         })
 
-        other_user=db.scalar(select(AnonymousSession).where(AnonymousSession.session_id == other_session_id))
-
-        is_friend = False
-        if other_user and user:
-            is_friend = other_user in user.friends
 
         event_for_current = {
                 "type": "match_found",
@@ -227,27 +244,25 @@ async def chat_websocket(
                 
                 if conv_id:
                     user2 = db.scalar(select(AnonymousSession).where(AnonymousSession.session_id == matched_user))
-                    if user2 and user1 in user2.friends:
-                        # Ensure Conversation exists in DB
-                        db_conv = db.scalar(select(Conversation).where(Conversation.conversation_id == conv_id))
-                        if not db_conv:
-                            db_conv = Conversation(
-                                conversation_id=conv_id,
-                                user1_session_id=resolved_session_id,
-                                user2_session_id=matched_user
-                            )
-                            db.add(db_conv)
-                            db.commit()
+                    db_conv = db.scalar(select(Conversation).where(Conversation.conversation_id == conv_id))
+                    if not db_conv:
+                        db_conv = Conversation(
+                            conversation_id=conv_id,
+                            user1_session_id=resolved_session_id,
+                            user2_session_id=matched_user
+                        )
+                        db.add(db_conv)
+                        db.commit()
                         
-                        if text_content:
-                            db_msg = Message(
-                                conversation_id=conv_id,
-                                sender_id=resolved_session_id,
-                                receiver_id=matched_user,
-                                message=text_content
-                            )
-                            db.add(db_msg)
-                            db.commit()
+                    if text_content:
+                        db_msg = Message(
+                            conversation_id=conv_id,
+                            sender_id=resolved_session_id,
+                            receiver_id=matched_user,
+                            message=text_content
+                        )
+                        db.add(db_msg)
+                        db.commit()
 
             await manager.send_json(
                     matched_user,
