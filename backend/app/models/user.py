@@ -1,9 +1,46 @@
 from datetime import datetime
+from typing import List
 
-from sqlalchemy import String, DateTime, Float
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy import (
+    String,
+    DateTime,
+    Float,
+    Table,
+    Column,
+    ForeignKey
+)
+
+from sqlalchemy.orm import (
+    Mapped,
+    mapped_column,
+    relationship
+)
 
 from database import Base
+
+
+friendships = Table(
+    "friendships",
+    Base.metadata,
+
+    Column(
+        "user_id",
+        ForeignKey("anonymous_sessions.id"),
+        primary_key=True
+    ),
+
+    Column(
+        "friend_id",
+        ForeignKey("anonymous_sessions.id"),
+        primary_key=True
+    ),
+    Column(
+        "created_at",
+        DateTime,
+        default=datetime.utcnow
+    )
+)
+
 
 class AnonymousSession(Base):
 
@@ -45,6 +82,18 @@ class AnonymousSession(Base):
     latitude: Mapped[float | None] = mapped_column(
         Float,
         nullable=True
+    )
+
+    friends: Mapped[List["AnonymousSession"]] = relationship(
+        "AnonymousSession",
+        secondary=friendships,
+        primaryjoin=id == friendships.c.user_id,
+        secondaryjoin=id == friendships.c.friend_id
+    )
+
+    status: Mapped[str] = mapped_column(
+        String(50),
+        default="active"
     )
 
     created_at: Mapped[datetime] = mapped_column(

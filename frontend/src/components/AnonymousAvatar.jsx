@@ -97,7 +97,6 @@ function AnonymousAvatar({ type = "ghost", size = "md", online = false }) {
                     <AvatarMark type={type} />
                 </svg>
             )}
-            {online && <span className="pip" />}
         </span>
     );
 }

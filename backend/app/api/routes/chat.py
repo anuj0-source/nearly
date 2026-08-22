@@ -154,13 +154,35 @@ async def cancel_match(session_id: str | None = Cookie(default=None)):
         }
     
 @router.websocket("/ws")
-async def chat_websocket(websocket: WebSocket, session_id: str | None = Cookie(default=None)):
+async def chat_websocket(
+    websocket: WebSocket,
+    session_id: str | None = Cookie(default=None),
+    session_id_param: str | None = None,  # ?session_id= query param
+    db: Session = Depends(get_db)
+):
+    # Browsers don't send cookies on cross-origin WebSocket upgrades,
+    # so accept session_id as a query param fallback.
+    resolved_session_id = session_id or session_id_param or websocket.query_params.get("session_id")
 
-    if not session_id:
+    if not resolved_session_id:
         await websocket.close()
         return
 
-    await manager.connect(websocket=websocket,session_id=session_id)
+
+    await manager.connect(websocket=websocket, session_id=resolved_session_id)
+
+    user1 = db.scalar(
+        select(AnonymousSession)
+        .where(AnonymousSession.session_id == resolved_session_id)
+    )
+
+    user1.status="active"
+    db.commit()
+    db.refresh(user1)
+
+    if not user1:
+        await websocket.close()
+        return
 
     try:
         while True:
@@ -174,7 +196,7 @@ async def chat_websocket(websocket: WebSocket, session_id: str | None = Cookie(d
             except json.JSONDecodeError:
                 continue
 
-            matched_user = matching.get(session_id)
+            matched_user = matching.get(resolved_session_id)
 
             if not matched_user:
                 continue
@@ -185,10 +207,14 @@ async def chat_websocket(websocket: WebSocket, session_id: str | None = Cookie(d
             )
             
     except WebSocketDisconnect:
-        await manager.disconnect(session_id, websocket)
+        await manager.disconnect(resolved_session_id, websocket)
+
+        user1.status="inacive"
+        db.commit()
+        db.refresh(user1)
 
         # Notify the partner that this user left, then clean up both sides.
-        other = matching.pop(session_id, None)
+        other = matching.pop(resolved_session_id, None)
         if other:
             matching.pop(other, None)
             await manager.send_json(other, {"type": "user_left"})

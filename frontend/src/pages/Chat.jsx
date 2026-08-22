@@ -1,15 +1,43 @@
 import { useEffect, useRef, useState } from "react";
 import {
     ArrowRight,
-    MoreHorizontal,
     RotateCw,
     Send,
     Shield,
+    UserPlus,
+    LogOut,
+    Bell,
 } from "lucide-react";
 import AnonymousAvatar from "../components/AnonymousAvatar";
 import GhostMark from "../components/GhostMark";
 import { anonymousPeople } from "../data/mockData";
 import { useNavigate } from "react-router-dom";
+
+const ReceiveRequestIcon = ({ size = 22, strokeWidth = 1.75, color = "currentColor" }) => (
+    <svg
+        xmlns="http://www.w3.org/2000/svg"
+        width={size}
+        height={size}
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke={color}
+        strokeWidth={strokeWidth}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+    >
+        <mask id="badge-cutout">
+            <rect width="100%" height="100%" fill="white" stroke="none" />
+            <circle cx="17" cy="17" r="6.5" fill="black" stroke="none" />
+        </mask>
+        <g mask="url(#badge-cutout)">
+            <circle cx="9" cy="7" r="4" />
+            <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+        </g>
+        <circle cx="17" cy="17" r="5" />
+        <path d="M17 14v6" />
+        <path d="M14.5 17.5 17 20l2.5-2.5" />
+    </svg>
+);
 
 
 // =================================================
@@ -163,8 +191,7 @@ function Chat() {
     const [message, setMessage] =
         useState("");
 
-    const [showMenu, setShowMenu] =
-        useState(false);
+
 
     const [isTyping, setIsTyping] =
         useState(false);
@@ -212,8 +239,11 @@ function Chat() {
     // =================================================
 
     useEffect(() => {
+        let isMounted = true;
 
         async function checkSession() {
+
+            let sessionData = null;
 
             try {
 
@@ -243,6 +273,8 @@ function Chat() {
 
                 const data =
                     await response.json();
+                
+                if (!isMounted) return;
 
 
                 console.log(
@@ -252,8 +284,11 @@ function Chat() {
 
 
                 setSession(data);
+                sessionData = data;
 
             } catch (error) {
+                
+                if (!isMounted) return;
 
                 console.error(
                     "Session check failed:",
@@ -262,19 +297,45 @@ function Chat() {
 
 
                 setSession(null);
-
-
                 navigate("/");
+                return;
 
             } finally {
+                
+                if (isMounted) {
+                    setSessionLoading(false);
+                }
 
-                setSessionLoading(false);
+            }
 
+            // Connect WebSocket outside the session try/catch so a WS
+            // failure doesn't wrongly redirect back to home.
+            if (sessionData && isMounted) {
+                try {
+                    await connectWebSocket(sessionData.session_id);
+                } catch (wsError) {
+                    if (isMounted) {
+                        console.error("WebSocket connection failed:", wsError);
+                        // Non-fatal — the user stays on the chat page and can
+                        // still retry matching once the socket reconnects.
+                    }
+                }
             }
         }
 
 
         checkSession();
+
+
+        // Close the WebSocket when the Chat page unmounts.
+        return () => {
+            isMounted = false;
+            if (websocketRef.current) {
+                websocketRef.current.onclose = null;
+                websocketRef.current.close();
+                websocketRef.current = null;
+            }
+        };
 
     }, [navigate]);
 
@@ -283,7 +344,7 @@ function Chat() {
     // WEBSOCKET CONNECTION
     // =================================================
 
-    function connectWebSocket() {
+    function connectWebSocket(sessionId) {
 
         // Close any existing socket cleanly before opening a new one.
         if (websocketRef.current) {
@@ -295,8 +356,12 @@ function Chat() {
 
         return new Promise((resolve, reject) => {
 
+            // Use the passed sessionId first (for initial call from checkSession
+            // where React state hasn't updated yet), then fall back to state.
+            const sid = sessionId ?? session?.session_id ?? "";
+
             const websocketUrl =
-                `${BACKEND_URL.replace(/^http/, "ws")}/api/chat/ws`;
+                `${BACKEND_URL.replace(/^http/, "ws")}/api/chat/ws?session_id=${sid}`;
 
             const websocket =
                 new WebSocket(websocketUrl);
@@ -559,7 +624,6 @@ function Chat() {
 
         stopTyping();
 
-        setShowMenu(false);
         setPartnerLeft(false);
 
         if (!session || !BACKEND_URL) {
@@ -572,7 +636,10 @@ function Chat() {
 
         try {
 
-            await connectWebSocket();
+            // If the socket dropped for any reason, reconnect before matching.
+            if (!websocketRef.current || websocketRef.current.readyState !== WebSocket.OPEN) {
+                await connectWebSocket();
+            }
 
 
             const response =
@@ -609,8 +676,6 @@ function Chat() {
         setMessages([]);
 
         setMessage("");
-
-        setShowMenu(false);
 
 
         // Explicitly close the WebSocket so the backend fires WebSocketDisconnect
@@ -654,8 +719,6 @@ function Chat() {
 
         setMessage("");
 
-        setShowMenu(false);
-
         await startMatching();
     }
 
@@ -692,6 +755,10 @@ function Chat() {
 
 
         setMessage("");
+        
+        if (messageInputRef.current) {
+            messageInputRef.current.style.height = "auto";
+        }
 
 
         if (websocketRef.current?.readyState !== WebSocket.OPEN) {
@@ -755,6 +822,14 @@ function Chat() {
 
         return (
             <section className="chat-setup">
+                <div style={{ position: "absolute", top: 24, right: 24, display: "flex", gap: 12, zIndex: 10 }}>
+                    <button className="ix-btn" type="button" aria-label="Friend requests" onClick={() => {}}>
+                        <ReceiveRequestIcon size={22} strokeWidth={1.75} />
+                    </button>
+                    <button className="ix-btn" type="button" aria-label="Notifications" onClick={() => {}}>
+                        <Bell size={22} strokeWidth={1.75} />
+                    </button>
+                </div>
 
                 <div
                     className="chat-setup-visual"
@@ -1023,67 +1098,39 @@ function Chat() {
                 <div
                     style={{
                         display: "flex",
-                        gap: 2,
+                        gap: 12,
                     }}
                 >
 
                     <button
                         className="ix-btn"
                         type="button"
-                        aria-label="Chat options"
-                        onClick={() =>
-                            setShowMenu(
-                                (current) =>
-                                    !current
-                            )
-                        }
+                        aria-label="Add friend"
+                        onClick={() => {}}
                     >
 
-                        <MoreHorizontal
-                            size={16}
+                        <UserPlus
+                            size={22}
+                            strokeWidth={1.75}
+                        />
+
+                    </button>
+
+                    <button
+                        className="ix-btn"
+                        type="button"
+                        aria-label="End chat"
+                        onClick={endChat}
+                    >
+
+                        <LogOut
+                            size={22}
                             strokeWidth={1.75}
                         />
 
                     </button>
 
                 </div>
-
-
-                {showMenu && (
-
-                    <div className="menu-pop">
-
-                        <button
-                            type="button"
-                            onClick={endChat}
-                        >
-                            End chat
-                        </button>
-
-
-                        <button
-                            type="button"
-                            onClick={() =>
-                                setShowMenu(false)
-                            }
-                        >
-                            Report
-                        </button>
-
-
-                        <button
-                            type="button"
-                            className="danger"
-                            onClick={() =>
-                                setShowMenu(false)
-                            }
-                        >
-                            Block
-                        </button>
-
-                    </div>
-
-                )}
 
             </header>
 
@@ -1278,14 +1325,24 @@ function Chat() {
 
                     <div className="composer-inner">
 
-                        <input
+                        <textarea
                             ref={messageInputRef}
                             value={message}
                             disabled={partnerLeft}
+                            rows={1}
+                            onKeyDown={(event) => {
+                                if (event.key === 'Enter' && !event.shiftKey) {
+                                    event.preventDefault();
+                                    sendMessage(event);
+                                }
+                            }}
                             onChange={(event) => {
                                 setMessage(
                                     event.target.value
                                 );
+                                
+                                event.target.style.height = "auto";
+                                event.target.style.height = `${event.target.scrollHeight}px`;
 
                                 // Notify the peer that we are typing.
                                 if (websocketRef.current?.readyState === WebSocket.OPEN) {
@@ -1310,7 +1367,6 @@ function Chat() {
                             placeholder={partnerLeft ? "Chat ended" : "Say hello..."}
                             aria-label="Message"
                         />
-
 
                         <button
                             className="send-btn"
