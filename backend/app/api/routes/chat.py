@@ -7,6 +7,8 @@ from models.user import AnonymousSession
 import uuid
 import json
 from datetime import datetime
+from models.conversation import Conversation
+from models.message import Message
 
 router=APIRouter(
     prefix="/api/chat"
@@ -98,12 +100,18 @@ async def matchmaking(
 
         other_user=db.scalar(select(AnonymousSession).where(AnonymousSession.session_id == other_session_id))
 
+        is_friend = False
+        if other_user and user:
+            is_friend = other_user in user.friends
+
         event_for_current = {
                 "type": "match_found",
                 "conversation_id": conversation_id,
                 "match": {
                     "name": other_user.name,
                     "avatar": other_user.avatar,
+                    "session_id": other_session_id,
+                    "is_friend": is_friend
                 },
             }
 
@@ -113,6 +121,8 @@ async def matchmaking(
             "match": {
                      "name": user.name,
                      "avatar": user.avatar,
+                     "session_id": session_id,
+                     "is_friend": is_friend
                     },
         }
 
@@ -184,6 +194,9 @@ async def chat_websocket(
         await websocket.close()
         return
 
+    conversation_id:str=None
+    user2:AnonymousSession | None =None
+
     try:
         while True:
             text = await websocket.receive_text()
@@ -200,6 +213,41 @@ async def chat_websocket(
 
             if not matched_user:
                 continue
+
+            if payload["type"] == "chat_message":
+                text_content = payload.get("text") or payload.get("message")
+                
+                # Find the conversation_id from memory
+                conv_id = None
+                for c in conversations:
+                    if (c["user_1"] == resolved_session_id and c["user_2"] == matched_user) or \
+                       (c["user_1"] == matched_user and c["user_2"] == resolved_session_id):
+                        conv_id = c["conversation_id"]
+                        break
+                
+                if conv_id:
+                    user2 = db.scalar(select(AnonymousSession).where(AnonymousSession.session_id == matched_user))
+                    if user2 and user1 in user2.friends:
+                        # Ensure Conversation exists in DB
+                        db_conv = db.scalar(select(Conversation).where(Conversation.conversation_id == conv_id))
+                        if not db_conv:
+                            db_conv = Conversation(
+                                conversation_id=conv_id,
+                                user1_session_id=resolved_session_id,
+                                user2_session_id=matched_user
+                            )
+                            db.add(db_conv)
+                            db.commit()
+                        
+                        if text_content:
+                            db_msg = Message(
+                                conversation_id=conv_id,
+                                sender_id=resolved_session_id,
+                                receiver_id=matched_user,
+                                message=text_content
+                            )
+                            db.add(db_msg)
+                            db.commit()
 
             await manager.send_json(
                     matched_user,

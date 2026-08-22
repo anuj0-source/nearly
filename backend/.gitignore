@@ -2,3 +2,5 @@
 app/__pycache__
 app/api/routes/__pycache__
 app/.env
+__pycache__/
+*.py[cod]

@@ -3,7 +3,7 @@ import { Gift, Heart, MapPin, MessageCircle, User } from "lucide-react";
 
 const items = [
     { label: "Chat", path: "/chat", Icon: MessageCircle },
-    { label: "Matches", path: "/matches", Icon: Heart },
+    { label: "Friends", path: "/friends", Icon: Heart },
     { label: "Nearby", path: "/nearby", Icon: MapPin },
     { label: "Profile", path: "/profile", Icon: User },
     { label: "Invite", path: "/invite", Icon: Gift },
@@ -18,7 +18,7 @@ function BottomNav() {
                         key={path}
                         to={path}
                         className={({ isActive }) => `bn-item ${isActive ? "on" : ""}`}
-                        title={label}
+                        data-tooltip={label}
                         aria-label={label}
                     >
                         {({ isActive }) => (

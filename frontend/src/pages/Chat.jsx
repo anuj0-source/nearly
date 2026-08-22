@@ -7,11 +7,39 @@ import {
     UserPlus,
     LogOut,
     Bell,
+    Check,
+    X,
+    Mail,
+    BadgeCheck,
 } from "lucide-react";
 import AnonymousAvatar from "../components/AnonymousAvatar";
 import GhostMark from "../components/GhostMark";
 import { anonymousPeople } from "../data/mockData";
 import { useNavigate } from "react-router-dom";
+
+const playMatchSound = () => {
+    try {
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        if (!AudioContext) return;
+        const ctx = new AudioContext();
+        if (ctx.state === 'suspended') ctx.resume();
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.type = 'sine';
+        const now = ctx.currentTime;
+        osc.frequency.setValueAtTime(440, now);
+        osc.frequency.exponentialRampToValueAtTime(880, now + 0.1);
+        gain.gain.setValueAtTime(0, now);
+        gain.gain.linearRampToValueAtTime(0.3, now + 0.05);
+        gain.gain.exponentialRampToValueAtTime(0.01, now + 0.3);
+        osc.start(now);
+        osc.stop(now + 0.3);
+    } catch (e) {
+        console.error("Audio playback failed", e);
+    }
+};
 
 const ReceiveRequestIcon = ({ size = 22, strokeWidth = 1.75, color = "currentColor" }) => (
     <svg
@@ -200,6 +228,16 @@ function Chat() {
         useState(false);
 
 
+    const [friendRequests, setFriendRequests] =
+        useState([]);
+
+    const [showRequests, setShowRequests] =
+        useState(false);
+
+    const [requestSent, setRequestSent] =
+        useState(false);
+
+
     // =================================================
     // SESSION STATE
     // =================================================
@@ -232,6 +270,26 @@ function Chat() {
 
     const websocketRef =
         useRef(null);
+
+    const requestsDropdownRef =
+        useRef(null);
+
+
+    // =================================================
+    // CLICK OUTSIDE
+    // =================================================
+
+    useEffect(() => {
+        function handleClickOutside(event) {
+            if (requestsDropdownRef.current && !requestsDropdownRef.current.contains(event.target)) {
+                setShowRequests(false);
+            }
+        }
+        document.addEventListener("mousedown", handleClickOutside);
+        return () => {
+            document.removeEventListener("mousedown", handleClickOutside);
+        };
+    }, []);
 
 
     // =================================================
@@ -285,6 +343,7 @@ function Chat() {
 
                 setSession(data);
                 sessionData = data;
+                fetchFriendRequests();
 
             } catch (error) {
                 
@@ -393,6 +452,11 @@ function Chat() {
                         JSON.parse(event.data);
 
 
+                    if (payload.type === "notification" && payload.event === "Sent friend request") {
+                        fetchFriendRequests();
+                        return;
+                    }
+
                     if (payload.type === "match_found") {
 
                         if (payload.match?.name && payload.match?.avatar) {
@@ -402,6 +466,7 @@ function Chat() {
                         setMessages([]);
 
                         setChatState("chatting");
+                        playMatchSound();
 
                         return;
                     }
@@ -666,6 +731,88 @@ function Chat() {
 
 
     // =================================================
+    // FRIEND REQUESTS
+    // =================================================
+
+    async function sendFriendRequest() {
+        if (!match || !match.session_id || requestSent) return;
+        try {
+            const response = await fetch(`${BACKEND_URL}/api/friend/request/${match.session_id}`, {
+                method: "POST",
+                credentials: "include",
+            });
+            if (response.ok) {
+                console.log("Friend request sent");
+                setRequestSent(true);
+                setTimeout(() => setRequestSent(false), 3000);
+            } else {
+                console.error("Failed to send friend request");
+            }
+        } catch (error) {
+            console.error("Error sending friend request:", error);
+        }
+    }
+
+    async function fetchFriendRequests() {
+        try {
+            const response = await fetch(`${BACKEND_URL}/api/friend/requests`, {
+                method: "GET",
+                credentials: "include",
+            });
+            if (response.ok) {
+                const data = await response.json();
+                setFriendRequests(data.requests || []);
+            } else {
+                console.error("Failed to get friend requests");
+            }
+        } catch (error) {
+            console.error("Error getting friend requests:", error);
+        }
+    }
+
+    async function toggleFriendRequests() {
+        if (showRequests) {
+            setShowRequests(false);
+            return;
+        }
+        await fetchFriendRequests();
+        setShowRequests(true);
+    }
+
+    async function acceptFriendRequest(friendId) {
+        try {
+            const response = await fetch(`${BACKEND_URL}/api/friend/accept/${friendId}`, {
+                method: "POST",
+                credentials: "include",
+            });
+            if (response.ok) {
+                setFriendRequests(prev => prev.filter(req => req.session_id !== friendId));
+            } else {
+                console.error("Failed to accept friend request");
+            }
+        } catch (error) {
+            console.error("Error accepting friend request:", error);
+        }
+    }
+
+    async function rejectFriendRequest(friendId) {
+        try {
+            const response = await fetch(`${BACKEND_URL}/api/friend/cancel-request/${friendId}`, {
+                method: "POST",
+                credentials: "include",
+            });
+            if (response.ok) {
+                setFriendRequests(prev => prev.filter(req => req.session_id !== friendId));
+            } else {
+                console.error("Failed to reject friend request");
+            }
+        } catch (error) {
+            console.error("Error rejecting friend request:", error);
+        }
+    }
+
+
+    // =================================================
     // END CHAT
     // =================================================
 
@@ -823,10 +970,86 @@ function Chat() {
         return (
             <section className="chat-setup">
                 <div style={{ position: "absolute", top: 24, right: 24, display: "flex", gap: 12, zIndex: 10 }}>
-                    <button className="ix-btn" type="button" aria-label="Friend requests" onClick={() => {}}>
-                        <ReceiveRequestIcon size={22} strokeWidth={1.75} />
+                    <button className="ix-btn" type="button" aria-label="Messages" data-tooltip="Messages">
+                        <Mail size={22} strokeWidth={1.75} />
                     </button>
-                    <button className="ix-btn" type="button" aria-label="Notifications" onClick={() => {}}>
+                    <div ref={requestsDropdownRef} style={{ position: "relative" }}>
+                        <button className="ix-btn" style={{ position: "relative" }} type="button" aria-label="Friend requests" {...(!showRequests ? { "data-tooltip": "Friend requests" } : {}) } onClick={toggleFriendRequests}>
+                            <ReceiveRequestIcon size={22} strokeWidth={1.75} />
+                            {friendRequests.length > 0 && (
+                                <span style={{
+                                    position: "absolute",
+                                    top: -2,
+                                    right: -2,
+                                    background: "var(--primary-color, #f43f5e)",
+                                    color: "white",
+                                    fontSize: 9,
+                                    fontWeight: "bold",
+                                    width: 14,
+                                    height: 14,
+                                    borderRadius: "50%",
+                                    display: "flex",
+                                    alignItems: "center",
+                                    justifyContent: "center",
+                                    pointerEvents: "none",
+                                    boxShadow: "0 0 0 2px var(--bg, #F6F5F1)"
+                                }}>
+                                    {friendRequests.length}
+                                </span>
+                            )}
+                        </button>
+                        {showRequests && (
+                            <div style={{
+                                position: "absolute",
+                                top: "100%",
+                                right: 0,
+                                marginTop: 8,
+                                background: "var(--paper)",
+                                border: "1px solid var(--line-strong)",
+                                borderRadius: 10,
+                                width: 280,
+                                boxShadow: "var(--shadow-2)",
+                                zIndex: 100,
+                                overflow: "hidden"
+                            }}>
+                                <div style={{
+                                    display: "flex",
+                                    alignItems: "center",
+                                    gap: 8,
+                                    padding: "14px 16px",
+                                    background: "var(--surface)",
+                                    borderBottom: "1px solid var(--line)"
+                                }}>
+                                    <ReceiveRequestIcon size={18} strokeWidth={2} color="var(--ink)" />
+                                    <h3 style={{ margin: 0, fontSize: 15, fontFamily: "var(--brand)", fontWeight: 600, color: "var(--ink)" }}>Friend Requests</h3>
+                                </div>
+                                <div style={{ padding: "20px 16px", maxHeight: 300, overflowY: "auto" }}>
+                                    {friendRequests.length === 0 ? (
+                                        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6, color: "var(--ink)" }}>
+                                            <BadgeCheck size={18} strokeWidth={2} />
+                                            <span style={{ fontWeight: 500, fontFamily: "var(--sans)", fontSize: 14 }}>No pending friend requests.</span>
+                                        </div>
+                                ) : (
+                                    friendRequests.map((req, i) => (
+                                        <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 0", borderBottom: i === friendRequests.length - 1 ? "none" : "1px solid var(--line, #eee)" }}>
+                                            <img src={req.avatar || "/mask.png"} alt="" style={{ width: 32, height: 32, borderRadius: "50%", background: "var(--surface, #eee)" }} />
+                                            <span style={{ fontSize: 14, color: "var(--ink, #000)", flex: 1 }}>{req.name || "Anonymous"}</span>
+                                            <div style={{ display: "flex", gap: 4 }}>
+                                                <button className="ix-btn" style={{ padding: 4 }} aria-label="Accept" onClick={() => acceptFriendRequest(req.session_id)}>
+                                                    <Check size={16} strokeWidth={2} color="var(--success-color, #22c55e)" />
+                                                </button>
+                                                <button className="ix-btn" style={{ padding: 4 }} aria-label="Reject" onClick={() => rejectFriendRequest(req.session_id)}>
+                                                    <X size={16} strokeWidth={2} color="var(--error-color, #ef4444)" />
+                                                </button>
+                                            </div>
+                                        </div>
+                                    ))
+                                )}
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                    <button className="ix-btn" type="button" aria-label="Notifications" data-tooltip="Notifications" onClick={() => {}}>
                         <Bell size={22} strokeWidth={1.75} />
                     </button>
                 </div>
@@ -1102,24 +1325,41 @@ function Chat() {
                     }}
                 >
 
-                    <button
-                        className="ix-btn"
-                        type="button"
-                        aria-label="Add friend"
-                        onClick={() => {}}
-                    >
+                    {!match?.is_friend && (
+                        <button
+                            className="ix-btn"
+                            type="button"
+                            aria-label={requestSent ? "Request sent" : "Add friend"}
+                            data-tooltip={requestSent ? "Request sent" : "Add friend"}
+                            onClick={sendFriendRequest}
+                            disabled={requestSent}
+                            style={{
+                                transition: "all 0.3s ease",
+                                backgroundColor: requestSent ? "var(--success-color, #22c55e)" : "transparent",
+                                color: requestSent ? "var(--text-primary, white)" : "inherit"
+                            }}
+                        >
 
-                        <UserPlus
-                            size={22}
-                            strokeWidth={1.75}
-                        />
+                            {requestSent ? (
+                                <Check
+                                    size={22}
+                                    strokeWidth={2}
+                                />
+                            ) : (
+                                <UserPlus
+                                    size={22}
+                                    strokeWidth={1.75}
+                                />
+                            )}
 
-                    </button>
+                        </button>
+                    )}
 
                     <button
                         className="ix-btn"
                         type="button"
                         aria-label="End chat"
+                        data-tooltip="End chat"
                         onClick={endChat}
                     >
 

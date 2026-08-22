@@ -4,7 +4,7 @@ import Home from "./pages/Home";
 import Chat from "./pages/Chat";
 import Invite from "./pages/Invite";
 import Login from "./pages/Login";
-import Matches from "./pages/Matches";
+import Friends from "./pages/Friends";
 import Nearby from "./pages/Nearby";
 import Profile from "./pages/Profile";
 import DashboardLayout from "./layouts/DashboardLayout";
@@ -24,7 +24,7 @@ function App() {
                     <Route path="/login" element={<Login darkMode={darkMode} onToggleTheme={toggleTheme} />} />
                     <Route element={<DashboardLayout darkMode={darkMode} onToggleTheme={toggleTheme} />}>
                         <Route path="/chat" element={<Chat />} />
-                        <Route path="/matches" element={<Matches />} />
+                        <Route path="/friends" element={<Friends />} />
                         <Route path="/nearby" element={<Nearby />} />
                         <Route path="/profile" element={<Profile darkMode={darkMode} onToggleTheme={toggleTheme} />} />
                         <Route path="/invite" element={<Invite />} />

@@ -41,6 +41,28 @@ friendships = Table(
     )
 )
 
+friend_requests=Table(
+    "friend_requests",
+    Base.metadata,
+
+    Column(
+        "user_id",
+        ForeignKey("anonymous_sessions.id"),
+        primary_key=True
+    ),
+
+    Column(
+        "sender_id",
+        ForeignKey("anonymous_sessions.id"),
+        primary_key=True
+    ),
+    Column(
+        "created_at",
+        DateTime,
+        default=datetime.utcnow
+    )
+)
+
 
 class AnonymousSession(Base):
 
@@ -89,6 +111,13 @@ class AnonymousSession(Base):
         secondary=friendships,
         primaryjoin=id == friendships.c.user_id,
         secondaryjoin=id == friendships.c.friend_id
+    )
+
+    friend_requests: Mapped[List["AnonymousSession"]] = relationship(
+        "AnonymousSession",
+        secondary=friend_requests,
+        primaryjoin=id == friend_requests.c.user_id,
+        secondaryjoin=id == friend_requests.c.sender_id
     )
 
     status: Mapped[str] = mapped_column(

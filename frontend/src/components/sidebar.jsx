@@ -5,7 +5,7 @@ import BrandLogo from "./BrandLogo";
 
 const items = [
     { id: "chat", label: "Chat", path: "/chat", Icon: MessageCircle },
-    { id: "matches", label: "Matches", path: "/matches", Icon: Heart },
+    { id: "friends", label: "Friends", path: "/friends", Icon: Heart },
     { id: "nearby", label: "Nearby", path: "/nearby", Icon: MapPin },
     { id: "profile", label: "Profile", path: "/profile", Icon: User },
     { id: "invite", label: "Invite", path: "/invite", Icon: Gift },
@@ -25,7 +25,6 @@ function Sidebar({ darkMode, onToggleTheme }) {
                         to={path}
                         className={({ isActive }) => `sb-item ${isActive ? "active" : ""}`}
                         aria-label={label}
-                        title={label}
                     >
                         <Icon size={18} strokeWidth={1.6} />
                         <span className="sb-label">{label}</span>

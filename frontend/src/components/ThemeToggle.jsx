@@ -8,7 +8,7 @@ function ThemeToggle({ darkMode, onToggle, icon = false }) {
             onClick={onToggle}
             aria-label={darkMode ? "Switch to light mode" : "Switch to dark mode"}
             aria-pressed={darkMode}
-            title={darkMode ? "Night mode active" : "Day mode active"}
+            data-tooltip={darkMode ? "Night mode active" : "Day mode active"}
         >
             <span className="secret-toggle-track" aria-hidden="true">
                 <span className="secret-toggle-symbol secret-toggle-symbol-dark"><Moon /></span>
