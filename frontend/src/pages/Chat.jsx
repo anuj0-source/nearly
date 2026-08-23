@@ -16,7 +16,7 @@ import {
 import AnonymousAvatar from "../components/AnonymousAvatar";
 import GhostMark from "../components/GhostMark";
 import { anonymousPeople } from "../data/mockData";
-import { useNavigate, useLocation } from "react-router-dom";
+import { useNavigate, useLocation, useSearchParams } from "react-router-dom";
 
 const playMatchSound = () => {
     try {
@@ -204,6 +204,7 @@ function Chat() {
 
     const navigate = useNavigate();
     const location = useLocation();
+    const [searchParams, setSearchParams] = useSearchParams();
     const ws = useWebSocket();
 
 
@@ -363,6 +364,95 @@ function Chat() {
 
         openWithFreshStatus();
     }, [sessionLoading]); // eslint-disable-line react-hooks/exhaustive-deps
+
+
+
+    // =================================================
+    // AUTO-OPEN CONV FROM URL PARAMS (Direct deep link)
+    // =================================================
+
+    useEffect(() => {
+        if (sessionLoading) return;
+        const partnerParam = searchParams.get("partner");
+        if (!partnerParam) return;
+
+        // If activeConv is already this partner, do nothing
+        if (activeConv && (
+            activeConv.user1_session_id === partnerParam ||
+            activeConv.user2_session_id === partnerParam
+        )) {
+            return;
+        }
+
+        async function fetchAndOpenDirect() {
+            setShowConversations(false);
+            setHistoryMessages([]);
+            setHistoryMessage("");
+            setHistoryLoading(true);
+            setChatState("history");
+
+            try {
+                // Fetch the conversation and messages via the new endpoint
+                const res = await fetch(
+                    `${BACKEND_URL}/api/messages/conversation/${partnerParam}`,
+                    { credentials: "include" }
+                );
+                
+                if (res.ok) {
+                    const data = await res.json();
+                    
+                    // Fetch live status fresh
+                    let freshStatus = "inactive";
+                    try {
+                        const statusRes = await fetch(
+                            `${BACKEND_URL}/api/messages/partner-status/${partnerParam}`,
+                            { credentials: "include" }
+                        );
+                        if (statusRes.ok) {
+                            const statusData = await statusRes.json();
+                            freshStatus = statusData.status;
+                        }
+                    } catch {
+                        // fallback
+                    }
+
+                    // Build synthetic conv object
+                    const conv = {
+                        conversation_id: data.conversation_id,
+                        partner_name: data.partner_name,
+                        partner_avatar: data.partner_avatar,
+                        partner_status: freshStatus,
+                        // Provide session IDs so other logic doesn't break
+                        user1_session_id: session?.session_id,
+                        user2_session_id: partnerParam,
+                    };
+                    setActiveConv(conv);
+
+                    // Map backend messages
+                    const mapped = (data.messages || []).map(m => ({
+                        id: String(m.id),
+                        sender: m.sender_id === session?.session_id ? "me" : "them",
+                        text: m.message,
+                        createdAt: m.created_at,
+                    }));
+                    setHistoryMessages(mapped);
+                } else {
+                    console.error("Direct conversation fetch failed", res.status);
+                    setChatState("setup");
+                    setSearchParams({}, { replace: true });
+                }
+            } catch (err) {
+                console.error("Failed to load direct conversation history:", err);
+                setChatState("setup");
+                setSearchParams({}, { replace: true });
+            } finally {
+                setHistoryLoading(false);
+            }
+        }
+
+        fetchAndOpenDirect();
+
+    }, [sessionLoading, searchParams, session?.session_id]); // eslint-disable-line react-hooks/exhaustive-deps
 
 
 
@@ -972,6 +1062,7 @@ function Chat() {
             setHistoryLoading(false);
         }
         setChatState("history");
+        setSearchParams({ partner: partnerSessionId }, { replace: true });
     }
 
 
@@ -1520,7 +1611,10 @@ function Chat() {
                             className="ix-btn"
                             type="button"
                             aria-label="Back"
-                            onClick={() => setChatState("setup")}
+                            onClick={() => {
+                                setChatState("setup");
+                                setSearchParams({}, { replace: true });
+                            }}
                             style={{ marginRight: 4 }}
                         >
                             <ArrowRight size={20} strokeWidth={1.75} style={{ transform: "rotate(180deg)" }} />

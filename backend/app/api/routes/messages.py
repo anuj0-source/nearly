@@ -122,9 +122,9 @@ async def get_messages(
     
     return messages
 
-@router.get("/friend-messages/{friend_session_id}")
+@router.get("/conversation/{partner_session_id}")
 async def get_friend_messages(
-    friend_session_id: str,
+    partner_session_id: str,
     session_id: str | None = Cookie(default=None),
     db: Session = Depends(get_db)
 ):
@@ -140,7 +140,7 @@ async def get_friend_messages(
 
     friend = db.scalar(
         select(AnonymousSession)
-        .where(AnonymousSession.session_id == friend_session_id)
+        .where(AnonymousSession.session_id == partner_session_id)
     )
     if not friend:
         raise HTTPException(status_code=404, detail="Friend not found")
@@ -151,10 +151,10 @@ async def get_friend_messages(
         .where(
             (
                 (Conversation.user1_session_id == session_id) &
-                (Conversation.user2_session_id == friend_session_id)
+                (Conversation.user2_session_id == partner_session_id)
             ) |
             (
-                (Conversation.user1_session_id == friend_session_id) &
+                (Conversation.user1_session_id == partner_session_id) &
                 (Conversation.user2_session_id == session_id)
             )
         )
