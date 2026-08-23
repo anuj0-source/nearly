@@ -425,6 +425,7 @@ function Chat() {
                         // Provide session IDs so other logic doesn't break
                         user1_session_id: session?.session_id,
                         user2_session_id: partnerParam,
+                        is_friend: data.is_friend,
                     };
                     setActiveConv(conv);
 

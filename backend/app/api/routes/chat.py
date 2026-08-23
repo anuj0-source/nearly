@@ -107,7 +107,7 @@ async def matchmaking(
             is_friend = other_user in user.friends
 
         
-        conversation_id=conversation = db.scalar(
+        conversation = db.scalar(
             select(Conversation)
             .where(
                 (
@@ -119,9 +119,9 @@ async def matchmaking(
                     (Conversation.user2_session_id == session_id)
                 )
             )
-        ).conversation_id
+        )
 
-        if not conversation_id:
+        if not conversation:
             conversation_id:str=str(uuid.uuid4())
             
             conversation=Conversation(
@@ -134,6 +134,9 @@ async def matchmaking(
             db.add(conversation)
             db.commit()
             db.refresh(conversation)
+        
+        else:
+            conversation_id=conversation.conversation_id
 
         conversations.append({
             "conversation_id":conversation_id,

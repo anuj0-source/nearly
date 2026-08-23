@@ -58,7 +58,7 @@ function Friends() {
         setLoadingChat(friend.session_id);
         try {
             const res = await fetch(
-                `${BACKEND_URL}/api/messages/friend-messages/${friend.session_id}`,
+                `${BACKEND_URL}/api/messages/conversation/${friend.session_id}`,
                 { credentials: "include" }
             );
             if (res.ok) {
@@ -69,19 +69,20 @@ function Friends() {
                     partner_session_id: friend.session_id,
                     partner_name: data.partner_name || friend.name,
                     partner_avatar: data.partner_avatar || friend.avatar,
+                    is_friend: data.is_friend,
                     // pre-mapped messages so Chat.jsx doesn't need to re-fetch
                     prefetchedMessages: data.messages,
                 };
-                navigate("/chat", { state: { openConv: conv } });
+                navigate(`/chat?partner=${friend.session_id}`, { state: { openConv: conv } });
             } else if (res.status === 404) {
                 // No conversation yet — just go to chat
-                navigate("/chat");
+                navigate(`/chat?partner=${friend.session_id}`);
             } else {
                 console.error("Failed to load conversation");
             }
         } catch (err) {
             console.error("Error opening chat:", err);
-            navigate("/chat");
+            navigate(`/chat?partner=${friend.session_id}`);
         } finally {
             setLoadingChat(null);
         }
