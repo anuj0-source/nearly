@@ -944,10 +944,11 @@ function Chat() {
     // FRIEND REQUESTS
     // =================================================
 
-    async function sendFriendRequest() {
-        if (!match || !match.session_id || requestSent) return;
+    async function sendFriendRequest(targetId) {
+        const idToRequest = typeof targetId === "string" ? targetId : match?.session_id;
+        if (!idToRequest || requestSent) return;
         try {
-            const response = await fetch(`${BACKEND_URL}/api/friend/request/${match.session_id}`, {
+            const response = await fetch(`${BACKEND_URL}/api/friend/request/${idToRequest}`, {
                 method: "POST",
                 credentials: "include",
             });
@@ -1647,7 +1648,33 @@ function Chat() {
                         </div>
                     </div>
 
-                    <div style={{ display: "flex", gap: 12 }} />
+                    <div style={{ display: "flex", gap: 12 }}>
+                        {!activeConv?.is_friend && (
+                            <button
+                                className="ix-btn"
+                                type="button"
+                                aria-label={requestSent ? "Request sent" : "Add friend"}
+                                data-tooltip={requestSent ? "Request sent" : "Add friend"}
+                                onClick={() => sendFriendRequest(
+                                    activeConv.user1_session_id === session?.session_id
+                                        ? activeConv.user2_session_id
+                                        : activeConv.user1_session_id
+                                )}
+                                disabled={requestSent}
+                                style={{
+                                    transition: "all 0.3s ease",
+                                    backgroundColor: requestSent ? "var(--success-color, #22c55e)" : "transparent",
+                                    color: requestSent ? "var(--text-primary, white)" : "inherit"
+                                }}
+                            >
+                                {requestSent ? (
+                                    <Check size={22} strokeWidth={2} />
+                                ) : (
+                                    <UserPlus size={22} strokeWidth={1.75} />
+                                )}
+                            </button>
+                        )}
+                    </div>
                 </header>
 
                 {/* Messages */}

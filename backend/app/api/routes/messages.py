@@ -71,6 +71,7 @@ async def get_conversations(
             "partner_name": partner.name if partner else "Unknown",
             "partner_avatar": partner.avatar if partner else None,
             "partner_status": "active" if is_online else "inactive",
+            "is_friend": partner in user.friends if partner else False,
         })
 
     return result
@@ -173,6 +174,7 @@ async def get_friend_messages(
         "conversation_id": conversation.conversation_id,
         "partner_name": friend.name,
         "partner_avatar": friend.avatar,
+        "is_friend": friend in user.friends,
         "messages": messages,
     }
 
