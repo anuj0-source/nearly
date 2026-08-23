@@ -13,6 +13,7 @@ httptools==0.8.0
 idna==3.18
 psycopg==3.3.4
 psycopg-binary==3.3.4
+psycopg2-binary==2.9.12
 pyasn1==0.6.4
 pyasn1_modules==0.4.2
 pycparser==3.0
