@@ -148,7 +148,8 @@ async def create_anonymous_session(response:Response,session_id:str | None = Coo
         key="session_id",
         value=new_session_id,
         httponly=True,
-        samesite="lax",
+        samesite="none",
+        secure=True,
         max_age=60 * 60 * 24 * 7
     )
 
