@@ -7,9 +7,13 @@ colorama==0.4.6
 cryptography==50.0.0
 fastapi==0.141.1
 google-auth==2.56.3
+greenlet==3.5.5
 h11==0.16.0
 httptools==0.8.0
 idna==3.18
+psycopg==3.3.4
+psycopg-binary==3.3.4
+psycopg2-binary==2.9.12
 pyasn1==0.6.4
 pyasn1_modules==0.4.2
 pycparser==3.0
@@ -18,9 +22,11 @@ pydantic-settings==2.15.0
 pydantic_core==2.46.4
 python-dotenv==1.2.2
 PyYAML==6.0.3
+SQLAlchemy==2.0.52
 starlette==1.6.0
 typing-inspection==0.4.4
 typing_extensions==4.16.0
+tzdata==2026.3
 uvicorn==0.52.3
 watchfiles==1.2.0
 websockets==17.0.1
