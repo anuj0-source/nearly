@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { BrowserRouter, Route, Routes } from "react-router-dom";
+import { WebSocketProvider } from "./contexts/WebSocketContext";
 import Home from "./pages/Home";
 import Chat from "./pages/Chat";
 import Invite from "./pages/Invite";
@@ -18,21 +19,24 @@ function App() {
 
     return (
         <div className={darkMode ? "theme-dark" : "theme-light"}>
-            <BrowserRouter>
-                <Routes>
-                    <Route path="/" element={<Home darkMode={darkMode} onToggleTheme={toggleTheme} />} />
-                    <Route path="/login" element={<Login darkMode={darkMode} onToggleTheme={toggleTheme} />} />
-                    <Route element={<DashboardLayout darkMode={darkMode} onToggleTheme={toggleTheme} />}>
-                        <Route path="/chat" element={<Chat />} />
-                        <Route path="/friends" element={<Friends />} />
-                        <Route path="/nearby" element={<Nearby />} />
-                        <Route path="/profile" element={<Profile darkMode={darkMode} onToggleTheme={toggleTheme} />} />
-                        <Route path="/invite" element={<Invite />} />
-                    </Route>
-                </Routes>
-            </BrowserRouter>
+            <WebSocketProvider>
+                <BrowserRouter>
+                    <Routes>
+                        <Route path="/" element={<Home darkMode={darkMode} onToggleTheme={toggleTheme} />} />
+                        <Route path="/login" element={<Login darkMode={darkMode} onToggleTheme={toggleTheme} />} />
+                        <Route element={<DashboardLayout darkMode={darkMode} onToggleTheme={toggleTheme} />}>
+                            <Route path="/chat" element={<Chat />} />
+                            <Route path="/friends" element={<Friends />} />
+                            <Route path="/nearby" element={<Nearby />} />
+                            <Route path="/profile" element={<Profile darkMode={darkMode} onToggleTheme={toggleTheme} />} />
+                            <Route path="/invite" element={<Invite />} />
+                        </Route>
+                    </Routes>
+                </BrowserRouter>
+            </WebSocketProvider>
         </div>
     );
 }
 
 export default App;
+

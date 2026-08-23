@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { useWebSocket } from "../contexts/WebSocketContext";
 import {
     ArrowRight,
     RotateCw,
@@ -203,6 +204,7 @@ function Chat() {
 
     const navigate = useNavigate();
     const location = useLocation();
+    const ws = useWebSocket();
 
 
     // =================================================
@@ -237,6 +239,8 @@ function Chat() {
     const [activeConv, setActiveConv] = useState(null);       // selected conversation object
     const [historyMessages, setHistoryMessages] = useState([]); // loaded messages for history view
     const [historyLoading, setHistoryLoading] = useState(false);
+    const [historyMessage, setHistoryMessage] = useState(""); // input for history composer
+    const [historyIsTyping, setHistoryIsTyping] = useState(false); // partner typing in history view
 
     const [showRequests, setShowRequests] =
         useState(false);
@@ -255,9 +259,6 @@ function Chat() {
     const [sessionLoading, setSessionLoading] =
         useState(true);
 
-    const [socketReady, setSocketReady] =
-        useState(false);
-
 
     // =================================================
     // REFS
@@ -265,6 +266,7 @@ function Chat() {
 
     const messagesRef =
         useRef(null);
+    const historyMessagesRef = useRef(null);
     const conversationsDropdownRef = useRef(null);
 
     const messageInputRef =
@@ -276,11 +278,18 @@ function Chat() {
     const typingTimerRef =
         useRef(null);
 
-    const websocketRef =
+    const historyTypingTimerRef =
         useRef(null);
 
     const requestsDropdownRef =
         useRef(null);
+
+    // Tracks the active live conversation_id for message persistence.
+    const conversationIdRef = useRef(null);
+
+    // Always-current reference to session so async callbacks don't capture stale state.
+    const sessionRef = useRef(session);
+    useEffect(() => { sessionRef.current = session; }, [session]);
 
 
     // =================================================
@@ -312,23 +321,48 @@ function Chat() {
         const openConv = location.state?.openConv;
         if (!openConv) return;
 
-        setActiveConv(openConv);
+        // Determine the partner's session_id
+        const partnerSessionId = openConv.partner_session_id || (
+            openConv.user1_session_id === session?.session_id
+                ? openConv.user2_session_id
+                : openConv.user1_session_id
+        );
 
-        // Messages were pre-fetched by Friends.jsx — map them now
-        const prefetched = openConv.prefetchedMessages || [];
-        const mapped = prefetched.map(m => ({
-            id: String(m.id),
-            sender: m.sender_id === session?.session_id ? "me" : "them",
-            text: m.message,
-            createdAt: m.created_at,
-        }));
-        setHistoryMessages(mapped);
-        setHistoryLoading(false);
-        setChatState("history");
+        // Fetch live status — openConv from Friends.jsx has no partner_status
+        async function openWithFreshStatus() {
+            let freshStatus = "inactive";
+            try {
+                const res = await fetch(
+                    `${BACKEND_URL}/api/messages/partner-status/${partnerSessionId}`,
+                    { credentials: "include" }
+                );
+                if (res.ok) {
+                    const data = await res.json();
+                    freshStatus = data.status;
+                }
+            } catch { /* fall back to inactive */ }
 
-        // Clear the state so a refresh doesn't re-trigger
-        window.history.replaceState({}, "");
+            setActiveConv({ ...openConv, partner_status: freshStatus });
+
+            // Messages were pre-fetched by Friends.jsx — map them now
+            const prefetched = openConv.prefetchedMessages || [];
+            const mapped = prefetched.map(m => ({
+                id: String(m.id),
+                sender: m.sender_id === session?.session_id ? "me" : "them",
+                text: m.message,
+                createdAt: m.created_at,
+            }));
+            setHistoryMessages(mapped);
+            setHistoryLoading(false);
+            setChatState("history");
+
+            // Clear the state so a refresh doesn't re-trigger
+            window.history.replaceState({}, "");
+        }
+
+        openWithFreshStatus();
     }, [sessionLoading]); // eslint-disable-line react-hooks/exhaustive-deps
+
 
 
     // =================================================
@@ -410,12 +444,14 @@ function Chat() {
             // failure doesn't wrongly redirect back to home.
             if (sessionData && isMounted) {
                 try {
-                    await connectWebSocket(sessionData.session_id);
+                    // The context auto-reconnects on refresh, but if the
+                    // socket isn't open yet we connect explicitly.
+                    if (!ws.websocketRef.current || ws.websocketRef.current.readyState !== WebSocket.OPEN) {
+                        await ws.connect(sessionData.session_id);
+                    }
                 } catch (wsError) {
                     if (isMounted) {
                         console.error("WebSocket connection failed:", wsError);
-                        // Non-fatal — the user stays on the chat page and can
-                        // still retry matching once the socket reconnects.
                     }
                 }
             }
@@ -425,144 +461,148 @@ function Chat() {
         checkSession();
 
 
-        // Close the WebSocket when the Chat page unmounts.
+        // Do NOT close the WebSocket when Chat unmounts — it lives in the
+        // global context so it survives page navigations.
         return () => {
             isMounted = false;
-            if (websocketRef.current) {
-                websocketRef.current.onclose = null;
-                websocketRef.current.close();
-                websocketRef.current = null;
-            }
         };
 
-    }, [navigate]);
+    }, [navigate, ws]);
 
 
     // =================================================
-    // WEBSOCKET CONNECTION
+    // FETCH OFFLINE MESSAGES (async helper — called from sync WS listener)
     // =================================================
 
-    function connectWebSocket(sessionId) {
-
-        // Close any existing socket cleanly before opening a new one.
-        if (websocketRef.current) {
-            websocketRef.current.onclose = null;
-            websocketRef.current.close();
-            websocketRef.current = null;
+    async function fetchOfflineMessages(convId) {
+        try {
+            const res = await fetch(
+                `${BACKEND_URL}/api/messages/messages/${convId}`,
+                { credentials: "include" }
+            );
+            if (!res.ok) return;
+            const history = await res.json();
+            if (history.length > 0) {
+                const currentSessionId = sessionRef.current?.session_id;
+                const mapped = history.map(m => ({
+                    id: String(m.id),
+                    sender: m.sender_id === currentSessionId ? "me" : "them",
+                    text: m.message,
+                    createdAt: m.created_at,
+                }));
+                setMessages(mapped);
+            }
+        } catch (err) {
+            console.error("Failed to load offline messages:", err);
         }
+    }
 
 
-        return new Promise((resolve, reject) => {
+    // =================================================
+    // WEBSOCKET MESSAGE LISTENER
+    // =================================================
 
-            // Use the passed sessionId first (for initial call from checkSession
-            // where React state hasn't updated yet), then fall back to state.
-            const sid = sessionId ?? session?.session_id ?? "";
+    useEffect(() => {
+        const removeListener = ws.addMessageListener((event) => {
+            try {
+                const payload = JSON.parse(event.data);
 
-            const websocketUrl =
-                `${BACKEND_URL.replace(/^http/, "ws")}/api/chat/ws?session_id=${sid}`;
+                if (payload.type === "notification" && payload.event === "Sent friend request") {
+                    fetchFriendRequests();
+                    return;
+                }
 
-            const websocket =
-                new WebSocket(websocketUrl);
+                if (payload.type === "match_found") {
+                    if (payload.match?.name && payload.match?.avatar) {
+                        setMatch(payload.match);
+                    }
+                    setMessages([]);
 
-            websocketRef.current = websocket;
+                    const convId = payload.conversation_id;
+                    conversationIdRef.current = convId;
 
-
-            websocket.onopen = () => {
-                setSocketReady(true);
-                resolve(websocket);
-            };
-
-
-            websocket.onclose = () =>
-                setSocketReady(false);
-
-
-            websocket.onerror = () => {
-                setSocketReady(false);
-                reject(new Error("WebSocket connection failed"));
-            };
-
-
-            websocket.onmessage = (event) => {
-
-                try {
-
-                    const payload =
-                        JSON.parse(event.data);
-
-
-                    if (payload.type === "notification" && payload.event === "Sent friend request") {
-                        fetchFriendRequests();
-                        return;
+                    // Fire-and-forget: load messages sent while we were offline.
+                    if (convId) {
+                        fetchOfflineMessages(convId);
                     }
 
-                    if (payload.type === "match_found") {
+                    setChatState("chatting");
+                    playMatchSound();
+                    return;
+                }
 
-                        if (payload.match?.name && payload.match?.avatar) {
-                            setMatch(payload.match);
+                if (payload.type === "typing") {
+                    // Route typing indicator to whichever view is active
+                    if (payload.conversation_id) {
+                        setHistoryIsTyping(Boolean(payload.is_typing));
+                        if (payload.is_typing) {
+                            window.clearTimeout(historyTypingTimerRef.current);
+                            historyTypingTimerRef.current = window.setTimeout(
+                                () => setHistoryIsTyping(false), 3000
+                            );
                         }
-
-                        setMessages([]);
-
-                        setChatState("chatting");
-                        playMatchSound();
-
-                        return;
-                    }
-
-
-                    if (payload.type === "typing") {
+                    } else {
                         setIsTyping(Boolean(payload.is_typing));
-                        return;
                     }
+                    return;
+                }
 
+                if (payload.type === "chat_message") {
+                    const incomingConvId = payload.conversation_id;
 
-                    if (payload.type === "chat_message") {
-                        setMessages(
-                            (current) => [
-                                ...current,
-
-                                createChatMessage({
-                                    idPrefix: "received",
-                                    sender: "them",
-                                    text: payload.text,
-                                }),
-                            ]
-                        );
-                        return;
-                    }
-
-
-                    if (payload.type === "user_left") {
-                        setIsTyping(false);
-                        setPartnerLeft(true);
-
-                        // Close our side of the socket cleanly.
-                        websocket.onclose = null;
-                        websocket.close();
-                        websocketRef.current = null;
-                        setSocketReady(false);
-                        return;
-                    }
-
-                } catch {
-
-                    // Fallback for plain-text messages.
-                    setMessages(
-                        (current) => [
+                    // If we are currently viewing a history conversation that matches,
+                    // append the message there instead of (or as well as) the live chat.
+                    if (incomingConvId) {
+                        setHistoryMessages(prev => [
+                            ...prev,
+                            createChatMessage({
+                                idPrefix: "received-history",
+                                sender: "them",
+                                text: payload.text,
+                            }),
+                        ]);
+                        // Also scroll the history pane
+                        window.requestAnimationFrame(() => {
+                            historyMessagesRef.current?.scrollTo({
+                                top: historyMessagesRef.current.scrollHeight,
+                                behavior: "smooth",
+                            });
+                        });
+                    } else {
+                        setMessages((current) => [
                             ...current,
-
                             createChatMessage({
                                 idPrefix: "received",
                                 sender: "them",
-                                text: event.data,
+                                text: payload.text,
                             }),
-                        ]
-                    );
+                        ]);
+                    }
+                    return;
                 }
-            };
+
+                if (payload.type === "user_left") {
+                    setIsTyping(false);
+                    setPartnerLeft(true);
+                    // Close the socket so the backend cleans up matching.
+                    ws.disconnect();
+                    return;
+                }
+            } catch {
+                // Fallback for plain-text messages.
+                setMessages((current) => [
+                    ...current,
+                    createChatMessage({
+                        idPrefix: "received",
+                        sender: "them",
+                        text: event.data,
+                    }),
+                ]);
+            }
         });
-    }
+
+        return removeListener;
+    }, [ws]); // eslint-disable-line react-hooks/exhaustive-deps
 
 
     // =================================================
@@ -595,6 +635,47 @@ function Chat() {
         );
 
     }, [messages, isTyping]);
+
+
+    // =================================================
+    // SCROLL HISTORY MESSAGES WHEN THEY CHANGE
+    // =================================================
+
+    useEffect(() => {
+        if (!historyMessagesRef.current) return;
+        scrollMessagesToBottom(historyMessagesRef.current);
+    }, [historyMessages, historyIsTyping]);
+
+
+    // =================================================
+    // POLL PARTNER STATUS WHILE IN HISTORY VIEW
+    // =================================================
+
+    useEffect(() => {
+        if (chatState !== "history" || !activeConv) return;
+
+        const partnerSessionId = activeConv.partner_session_id || (
+            activeConv.user1_session_id === session?.session_id
+                ? activeConv.user2_session_id
+                : activeConv.user1_session_id
+        );
+
+        async function refreshStatus() {
+            try {
+                const res = await fetch(
+                    `${BACKEND_URL}/api/messages/partner-status/${partnerSessionId}`,
+                    { credentials: "include" }
+                );
+                if (res.ok) {
+                    const data = await res.json();
+                    setActiveConv(prev => prev ? { ...prev, partner_status: data.status } : prev);
+                }
+            } catch { /* ignore */ }
+        }
+
+        const interval = setInterval(refreshStatus, 5000);
+        return () => clearInterval(interval);
+    }, [chatState, activeConv?.conversation_id]); // eslint-disable-line react-hooks/exhaustive-deps
 
 
     // =================================================
@@ -710,11 +791,7 @@ function Chat() {
         // Cancel pending debounce and immediately tell the peer we stopped.
         window.clearTimeout(typingTimerRef.current);
 
-        if (websocketRef.current?.readyState === WebSocket.OPEN) {
-            websocketRef.current.send(
-                JSON.stringify({ type: "typing", is_typing: false })
-            );
-        }
+        ws.sendJson({ type: "typing", is_typing: false });
 
         setIsTyping(false);
     }
@@ -741,8 +818,8 @@ function Chat() {
         try {
 
             // If the socket dropped for any reason, reconnect before matching.
-            if (!websocketRef.current || websocketRef.current.readyState !== WebSocket.OPEN) {
-                await connectWebSocket();
+            if (!ws.websocketRef.current || ws.websocketRef.current.readyState !== WebSocket.OPEN) {
+                await ws.connect(session.session_id);
             }
 
 
@@ -843,9 +920,32 @@ function Chat() {
 
     async function openConversation(conv) {
         setShowConversations(false);
-        setActiveConv(conv);
         setHistoryMessages([]);
+        setHistoryMessage("");
         setHistoryLoading(true);
+
+        // Determine the partner's session_id
+        const partnerSessionId = conv.user1_session_id === session?.session_id
+            ? conv.user2_session_id
+            : conv.user1_session_id;
+
+        // Fetch live status fresh — don't rely on the stale conversations list snapshot
+        let freshStatus = conv.partner_status ?? "inactive";
+        try {
+            const statusRes = await fetch(
+                `${BACKEND_URL}/api/messages/partner-status/${partnerSessionId}`,
+                { credentials: "include" }
+            );
+            if (statusRes.ok) {
+                const statusData = await statusRes.json();
+                freshStatus = statusData.status;
+            }
+        } catch {
+            // fall back to cached value
+        }
+
+        setActiveConv({ ...conv, partner_status: freshStatus });
+
         try {
             const res = await fetch(
                 `${BACKEND_URL}/api/messages/messages/${conv.conversation_id}`,
@@ -870,6 +970,7 @@ function Chat() {
         setChatState("history");
     }
 
+
     async function acceptFriendRequest(friendId) {
         try {
             const response = await fetch(`${BACKEND_URL}/api/friend/accept/${friendId}`, {
@@ -888,7 +989,7 @@ function Chat() {
 
     async function rejectFriendRequest(friendId) {
         try {
-            const response = await fetch(`${BACKEND_URL}/api/friend/cancel-request/${friendId}`, {
+            const response = await fetch(`${BACKEND_URL}/api/friend/reject/${friendId}`, {
                 method: "POST",
                 credentials: "include",
             });
@@ -899,6 +1000,50 @@ function Chat() {
             }
         } catch (error) {
             console.error("Error rejecting friend request:", error);
+        }
+    }
+
+
+    // =================================================
+    // SEND HISTORY MESSAGE
+    // =================================================
+
+    async function sendHistoryMessage(event) {
+        event.preventDefault();
+        const trimmed = historyMessage.trim();
+        if (!trimmed || !activeConv) return;
+
+        setHistoryMessage("");
+
+        // Optimistically add to UI
+        const optimistic = {
+            id: `optimistic-${Date.now()}`,
+            sender: "me",
+            text: trimmed,
+            createdAt: new Date().toISOString(),
+        };
+        setHistoryMessages(prev => [...prev, optimistic]);
+
+        // Scroll to bottom
+        window.requestAnimationFrame(() => {
+            historyMessagesRef.current?.scrollTo({
+                top: historyMessagesRef.current.scrollHeight,
+                behavior: "smooth",
+            });
+        });
+
+        try {
+            await fetch(`${BACKEND_URL}/api/messages/send`, {
+                method: "POST",
+                credentials: "include",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    conversation_id: activeConv.conversation_id,
+                    message: trimmed,
+                }),
+            });
+        } catch (err) {
+            console.error("Failed to send message:", err);
         }
     }
 
@@ -918,13 +1063,7 @@ function Chat() {
 
         // Explicitly close the WebSocket so the backend fires WebSocketDisconnect
         // and cleans up connections + matching entries.
-        if (websocketRef.current) {
-            websocketRef.current.onclose = null; // suppress the generic onclose handler
-            websocketRef.current.close();
-            websocketRef.current = null;
-        }
-
-        setSocketReady(false);
+        ws.disconnect();
 
         try {
 
@@ -999,14 +1138,12 @@ function Chat() {
         }
 
 
-        if (websocketRef.current?.readyState !== WebSocket.OPEN) {
+        if (!ws.websocketRef.current || ws.websocketRef.current.readyState !== WebSocket.OPEN) {
             return;
         }
 
 
-        websocketRef.current.send(
-            JSON.stringify({ type: "chat_message", text: trimmed })
-        );
+        ws.sendJson({ type: "chat_message", text: trimmed });
 
 
         window.requestAnimationFrame(
@@ -1166,53 +1303,78 @@ function Chat() {
                             )}
                         </button>
                         {showRequests && (
-                            <div style={{
-                                position: "absolute",
-                                top: "100%",
-                                right: 0,
-                                marginTop: 8,
-                                background: "var(--paper)",
-                                border: "1px solid var(--line-strong)",
-                                borderRadius: 10,
-                                width: 280,
-                                boxShadow: "var(--shadow-2)",
-                                zIndex: 100,
-                                overflow: "hidden"
-                            }}>
-                                <div style={{
-                                    display: "flex",
-                                    alignItems: "center",
-                                    gap: 8,
-                                    padding: "14px 16px",
-                                    background: "var(--surface)",
-                                    borderBottom: "1px solid var(--line)"
-                                }}>
-                                    <ReceiveRequestIcon size={18} strokeWidth={2} color="var(--ink)" />
-                                    <h3 style={{ margin: 0, fontSize: 15, fontFamily: "var(--brand)", fontWeight: 600, color: "var(--ink)" }}>Friend Requests</h3>
+                            <div className="conv-panel">
+
+                                {/* ── Header ── */}
+                                <div className="conv-header">
+                                    <div className="conv-header-left">
+                                        <div className="conv-header-icon">
+                                            <ReceiveRequestIcon size={15} strokeWidth={2.2} color="#fff" />
+                                        </div>
+                                        <span className="conv-header-title">Friend Requests</span>
+                                    </div>
+                                    {friendRequests.length > 0 && (
+                                        <span className="conv-header-count">{friendRequests.length}</span>
+                                    )}
                                 </div>
-                                <div style={{ padding: "20px 16px", maxHeight: 300, overflowY: "auto" }}>
+
+                                {/* ── List ── */}
+                                <div className="conv-list">
                                     {friendRequests.length === 0 ? (
-                                        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6, color: "var(--ink)" }}>
-                                            <BadgeCheck size={18} strokeWidth={2} />
-                                            <span style={{ fontWeight: 500, fontFamily: "var(--sans)", fontSize: 14 }}>No pending friend requests.</span>
-                                        </div>
-                                ) : (
-                                    friendRequests.map((req, i) => (
-                                        <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 0", borderBottom: i === friendRequests.length - 1 ? "none" : "1px solid var(--line, #eee)" }}>
-                                            <img src={req.avatar || "/mask.png"} alt="" style={{ width: 32, height: 32, borderRadius: "50%", background: "var(--surface, #eee)" }} />
-                                            <span style={{ fontSize: 14, color: "var(--ink, #000)", flex: 1 }}>{req.name || "Anonymous"}</span>
-                                            <div style={{ display: "flex", gap: 4 }}>
-                                                <button className="ix-btn" style={{ padding: 4 }} aria-label="Accept" onClick={() => acceptFriendRequest(req.session_id)}>
-                                                    <Check size={16} strokeWidth={2} color="var(--success-color, #22c55e)" />
-                                                </button>
-                                                <button className="ix-btn" style={{ padding: 4 }} aria-label="Reject" onClick={() => rejectFriendRequest(req.session_id)}>
-                                                    <X size={16} strokeWidth={2} color="var(--error-color, #ef4444)" />
-                                                </button>
+                                        <div className="conv-empty">
+                                            <div className="conv-empty-icon">
+                                                <BadgeCheck size={28} strokeWidth={1.4} />
                                             </div>
+                                            <p className="conv-empty-title">All caught up!</p>
+                                            <p className="conv-empty-sub">No pending friend requests right now</p>
                                         </div>
-                                    ))
-                                )}
+                                    ) : (
+                                        friendRequests.map((req, i) => (
+                                            <div key={i} className="conv-item freq-item">
+                                                <div className="conv-avatar" data-seed={i % 6}>
+                                                    {req.avatar ? (
+                                                        <img
+                                                            src={req.avatar}
+                                                            alt={req.name}
+                                                            className="conv-avatar-img"
+                                                            onError={e => { e.currentTarget.style.display = "none"; e.currentTarget.nextSibling.style.display = "flex"; }}
+                                                        />
+                                                    ) : null}
+                                                    <span className="conv-avatar-fallback" style={{ display: req.avatar ? "none" : "flex" }}>
+                                                        {(req.name || "?").split(" ").map(w => w[0]).join("").substring(0, 2).toUpperCase()}
+                                                    </span>
+                                                </div>
+
+                                                <div className="conv-item-body">
+                                                    <div className="conv-item-top">
+                                                        <span className="conv-item-name">{req.name || "Anonymous"}</span>
+                                                    </div>
+                                                    <span className="conv-item-preview">Wants to be your friend</span>
+                                                </div>
+
+                                                <div className="freq-actions">
+                                                    <button
+                                                        className="freq-btn freq-accept"
+                                                        aria-label="Accept"
+                                                        title="Accept"
+                                                        onClick={() => acceptFriendRequest(req.session_id)}
+                                                    >
+                                                        <Check size={14} strokeWidth={2.5} />
+                                                    </button>
+                                                    <button
+                                                        className="freq-btn freq-reject"
+                                                        aria-label="Reject"
+                                                        title="Reject"
+                                                        onClick={() => rejectFriendRequest(req.session_id)}
+                                                    >
+                                                        <X size={14} strokeWidth={2.5} />
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        ))
+                                    )}
                                 </div>
+
                             </div>
                         )}
                     </div>
@@ -1327,6 +1489,7 @@ function Chat() {
     if (chatState === "history") {
         const partnerName = activeConv?.partner_name || "Anonymous";
         const partnerAvatar = activeConv?.partner_avatar;
+        const isOnline = activeConv?.partner_status === "active";
 
         return (
             <section className="conversation">
@@ -1370,7 +1533,13 @@ function Chat() {
 
                         <div>
                             <h3 className="conv-name">{partnerName}</h3>
-                            <p className="conv-meta">Past conversation</p>
+                            <p className="conv-meta">
+                                <span className="status-dot" style={isOnline ? {} : {
+                                    background: "var(--muted, #6b7280)",
+                                    boxShadow: "none",
+                                }} />
+                                {isOnline ? "Online" : "Offline"}
+                            </p>
                         </div>
                     </div>
 
@@ -1378,7 +1547,7 @@ function Chat() {
                 </header>
 
                 {/* Messages */}
-                <div className="messages" ref={messagesRef}>
+                <div className="messages" ref={historyMessagesRef}>
 
                     <div className="notice" role="status">
                         <div className="notice-copy">
@@ -1430,25 +1599,71 @@ function Chat() {
                         </div>
                     ))}
 
+                    {historyIsTyping && (
+                        <div className="row">
+                            <div style={{
+                                width: 32, height: 32, borderRadius: "50%",
+                                overflow: "hidden", flexShrink: 0,
+                                background: "var(--accent-dim)",
+                                display: "grid", placeItems: "center"
+                            }}>
+                                {partnerAvatar
+                                    ? <img src={partnerAvatar} alt={partnerName} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                                    : <span style={{ fontFamily: "var(--brand)", fontSize: 11, fontWeight: 700, color: "var(--accent)" }}>
+                                        {partnerName.split(" ").map(w => w[0]).join("").substring(0, 2).toUpperCase()}
+                                      </span>
+                                }
+                            </div>
+                            <div className="typing">
+                                <i /><i /><i />
+                            </div>
+                        </div>
+                    )}
+
                 </div>
 
-                {/* Read-only footer */}
-                <div className="composer" style={{ pointerEvents: "none", opacity: 0.45 }}>
+                {/* Composer */}
+                <form className="composer" onSubmit={sendHistoryMessage}>
                     <div className="composer-row">
                         <div className="composer-inner">
                             <textarea
                                 rows={1}
-                                disabled
-                                placeholder="This is a past conversation"
-                                aria-label="Read-only"
+                                value={historyMessage}
+                                onChange={e => {
+                                    setHistoryMessage(e.target.value);
+                                    e.target.style.height = "auto";
+                                    e.target.style.height = `${e.target.scrollHeight}px`;
+                                    // Send typing indicator via WS with conversation_id so partner knows
+                                    ws.sendJson({
+                                        type: "typing",
+                                        is_typing: true,
+                                        conversation_id: activeConv?.conversation_id,
+                                    });
+                                    window.clearTimeout(historyTypingTimerRef.current);
+                                    historyTypingTimerRef.current = window.setTimeout(() => {
+                                        ws.sendJson({
+                                            type: "typing",
+                                            is_typing: false,
+                                            conversation_id: activeConv?.conversation_id,
+                                        });
+                                    }, 1500);
+                                }}
+                                onKeyDown={e => {
+                                    if (e.key === "Enter" && !e.shiftKey) {
+                                        e.preventDefault();
+                                        sendHistoryMessage(e);
+                                    }
+                                }}
+                                placeholder="Send a message…"
+                                aria-label="Message"
                                 style={{ resize: "none" }}
                             />
-                            <button className="send-btn" type="button" aria-label="Send" disabled>
+                            <button className="send-btn" type="submit" aria-label="Send">
                                 <Send size={14} />
                             </button>
                         </div>
                     </div>
-                </div>
+                </form>
 
             </section>
         );
@@ -1887,20 +2102,12 @@ function Chat() {
                                 event.target.style.height = `${event.target.scrollHeight}px`;
 
                                 // Notify the peer that we are typing.
-                                if (websocketRef.current?.readyState === WebSocket.OPEN) {
-                                    websocketRef.current.send(
-                                        JSON.stringify({ type: "typing", is_typing: true })
-                                    );
-                                }
+                                ws.sendJson({ type: "typing", is_typing: true });
 
                                 // Send typing:false after 1.5 s of inactivity.
                                 window.clearTimeout(typingTimerRef.current);
                                 typingTimerRef.current = window.setTimeout(() => {
-                                    if (websocketRef.current?.readyState === WebSocket.OPEN) {
-                                        websocketRef.current.send(
-                                            JSON.stringify({ type: "typing", is_typing: false })
-                                        );
-                                    }
+                                    ws.sendJson({ type: "typing", is_typing: false });
                                 }, 1500);
                             }}
                             onFocus={

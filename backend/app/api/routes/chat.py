@@ -7,8 +7,13 @@ from models.user import AnonymousSession
 import uuid
 import json
 from datetime import datetime
+from collections import defaultdict
 from models.conversation import Conversation
 from models.message import Message
+
+# Messages buffered while the recipient is offline.
+# Flushed automatically the next time they open a WebSocket connection.
+pending_messages: dict[str, list] = defaultdict(list)
 
 router=APIRouter(
     prefix="/api/chat"
@@ -48,12 +53,18 @@ class ConnectionManager():
         if websocket:
             await websocket.send_text(message)
 
-    async def send_json(self,session_id,json):
-        websocket=self.connections.get(session_id)
+    async def send_json(self, session_id, payload):
+        websocket = self.connections.get(session_id)
 
         if websocket:
-            await websocket.send_json(json)
-        
+            try:
+                await websocket.send_json(payload)
+            except Exception:
+                # Socket broke mid-send — buffer for next reconnect.
+                pending_messages[session_id].append(payload)
+        else:
+            # User is offline — buffer the message.
+            pending_messages[session_id].append(payload)
    
 manager=ConnectionManager()
 
@@ -103,10 +114,10 @@ async def matchmaking(
                 .where(
                     (
                         (Conversation.user1_session_id == session_id) &
-                        (Conversation.user2_session_id == friend_session_id)
+                        (Conversation.user2_session_id == other_session_id)
                     ) |
                     (
-                        (Conversation.user1_session_id == friend_session_id) &
+                        (Conversation.user1_session_id == other_session_id) &
                         (Conversation.user2_session_id == session_id)
                     )
                 )
@@ -198,18 +209,27 @@ async def chat_websocket(
 
     await manager.connect(websocket=websocket, session_id=resolved_session_id)
 
+    # Flush any messages that arrived while this user was offline.
+    if resolved_session_id in pending_messages:
+        queued = pending_messages.pop(resolved_session_id)
+        for queued_payload in queued:
+            try:
+                await websocket.send_json(queued_payload)
+            except Exception:
+                pass
+
     user1 = db.scalar(
         select(AnonymousSession)
         .where(AnonymousSession.session_id == resolved_session_id)
     )
 
-    user1.status="active"
-    db.commit()
-    db.refresh(user1)
-
     if not user1:
         await websocket.close()
         return
+
+    user1.status="active"
+    db.commit()
+    db.refresh(user1)
 
     conversation_id:str=None
     user2:AnonymousSession | None =None
@@ -228,6 +248,20 @@ async def chat_websocket(
 
             matched_user = matching.get(resolved_session_id)
 
+            # If the payload carries a conversation_id (history messaging),
+            # find the partner directly from the DB even without an active match.
+            conv_id_from_payload = payload.get("conversation_id")
+            if not matched_user and conv_id_from_payload:
+                db_conv = db.scalar(
+                    select(Conversation).where(Conversation.conversation_id == conv_id_from_payload)
+                )
+                if db_conv:
+                    matched_user = (
+                        db_conv.user2_session_id
+                        if db_conv.user1_session_id == resolved_session_id
+                        else db_conv.user1_session_id
+                    )
+
             if not matched_user:
                 continue
 
@@ -235,12 +269,13 @@ async def chat_websocket(
                 text_content = payload.get("text") or payload.get("message")
                 
                 # Find the conversation_id from memory
-                conv_id = None
-                for c in conversations:
-                    if (c["user_1"] == resolved_session_id and c["user_2"] == matched_user) or \
-                       (c["user_1"] == matched_user and c["user_2"] == resolved_session_id):
-                        conv_id = c["conversation_id"]
-                        break
+                conv_id = conv_id_from_payload
+                if not conv_id:
+                    for c in conversations:
+                        if (c["user_1"] == resolved_session_id and c["user_2"] == matched_user) or \
+                           (c["user_1"] == matched_user and c["user_2"] == resolved_session_id):
+                            conv_id = c["conversation_id"]
+                            break
                 
                 if conv_id:
                     user2 = db.scalar(select(AnonymousSession).where(AnonymousSession.session_id == matched_user))
@@ -272,7 +307,7 @@ async def chat_websocket(
     except WebSocketDisconnect:
         await manager.disconnect(resolved_session_id, websocket)
 
-        user1.status="inacive"
+        user1.status="inactive"
         db.commit()
         db.refresh(user1)
 

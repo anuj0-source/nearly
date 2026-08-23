@@ -155,12 +155,25 @@ async def get_friends(
             detail="user not found"
         )
     
+    # Enrich friends with live online status
+    from api.routes.chat import manager as ws_manager
+    friends_list = []
+    for f in user.friends:
+        is_online = f.session_id in ws_manager.connections
+        friends_list.append({
+            "id": f.id,
+            "session_id": f.session_id,
+            "name": f.name,
+            "avatar": f.avatar,
+            "status": "active" if is_online else "inactive"
+        })
+    
     return {
-        "friends":user.friends
+        "friends": friends_list
     }
 
-@router.post("/cancel-request/{sender_id}")
-async def cancel_request(
+@router.post("/reject/{sender_id}")
+async def reject_friend_request(
     sender_id : str,
     session_id : str | None = Cookie(default=None),
     db : Session = Depends(get_db)
@@ -192,7 +205,7 @@ async def cancel_request(
     db.refresh(user1)
 
     return {
-        "message":"friend request cancelled"
+        "message":"friend request rejected"
     }
 
 @router.post("/remove/{friend_id}")

@@ -27,7 +27,13 @@ function Friends() {
                 console.error("Error fetching friends:", error);
             }
         }
+        
+        // Fetch immediately
         fetchFriends();
+        
+        // Poll every 5 seconds
+        const intervalId = setInterval(fetchFriends, 5000);
+        return () => clearInterval(intervalId);
     }, []);
 
     async function handleRemoveFriend(e, friendId) {
@@ -60,6 +66,7 @@ function Friends() {
                 // Build a conv object matching the shape Chat.jsx history view expects
                 const conv = {
                     conversation_id: data.conversation_id,
+                    partner_session_id: friend.session_id,
                     partner_name: data.partner_name || friend.name,
                     partner_avatar: data.partner_avatar || friend.avatar,
                     // pre-mapped messages so Chat.jsx doesn't need to re-fetch

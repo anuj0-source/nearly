@@ -4218,3 +4218,44 @@ a { color: inherit; text-decoration: none; }
     from { transform: rotate(0deg); }
     to   { transform: rotate(360deg); }
 }
+
+/* =============================================================
+   FRIEND REQUESTS PANEL — action buttons
+   ============================================================= */
+
+/* Requests rows are not clickable, override cursor */
+.freq-item { cursor: default; }
+.freq-item:hover { background: var(--accent-soft); }
+
+/* Accept / Reject button group */
+.freq-actions {
+    display: flex;
+    gap: 6px;
+    flex-shrink: 0;
+}
+
+.freq-btn {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    border: none;
+    display: grid;
+    place-items: center;
+    cursor: pointer;
+    transition: background 0.15s ease, transform 0.12s ease;
+    flex-shrink: 0;
+}
+
+.freq-btn:hover { transform: scale(1.1); }
+
+.freq-accept {
+    background: color-mix(in srgb, #22c55e 15%, transparent);
+    color: #22c55e;
+}
+.freq-accept:hover { background: color-mix(in srgb, #22c55e 28%, transparent); }
+
+.freq-reject {
+    background: color-mix(in srgb, #ef4444 12%, transparent);
+    color: #ef4444;
+}
+.freq-reject:hover { background: color-mix(in srgb, #ef4444 24%, transparent); }
