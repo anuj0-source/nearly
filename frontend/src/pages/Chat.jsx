@@ -267,6 +267,7 @@ function Chat() {
     const messagesRef =
         useRef(null);
     const historyMessagesRef = useRef(null);
+    const historyInputRef = useRef(null);
     const conversationsDropdownRef = useRef(null);
 
     const messageInputRef =
@@ -684,7 +685,9 @@ function Chat() {
 
     useEffect(() => {
 
-        if (chatState !== "chatting") {
+        // Active for both live chat and history view — both have a fixed-height
+        // conversation layout that must not scroll when the keyboard opens.
+        if (chatState !== "chatting" && chatState !== "history") {
             return undefined;
         }
 
@@ -709,13 +712,14 @@ function Chat() {
             );
 
 
-            window.requestAnimationFrame(
-                () =>
-                    scrollMessagesToBottom(
-                        messagesRef.current,
-                        "auto"
-                    )
-            );
+            // Scroll the active pane to the bottom after the layout reflows.
+            window.requestAnimationFrame(() => {
+                const activeRef =
+                    chatState === "history"
+                        ? historyMessagesRef.current
+                        : messagesRef.current;
+                scrollMessagesToBottom(activeRef, "auto");
+            });
         };
 
 
@@ -1015,6 +1019,11 @@ function Chat() {
 
         setHistoryMessage("");
 
+        // Reset textarea height
+        if (historyInputRef.current) {
+            historyInputRef.current.style.height = "auto";
+        }
+
         // Optimistically add to UI
         const optimistic = {
             id: `optimistic-${Date.now()}`,
@@ -1024,12 +1033,13 @@ function Chat() {
         };
         setHistoryMessages(prev => [...prev, optimistic]);
 
-        // Scroll to bottom
+        // Scroll to bottom and keep keyboard open
         window.requestAnimationFrame(() => {
             historyMessagesRef.current?.scrollTo({
                 top: historyMessagesRef.current.scrollHeight,
                 behavior: "smooth",
             });
+            historyInputRef.current?.focus({ preventScroll: true });
         });
 
         try {
@@ -1627,6 +1637,7 @@ function Chat() {
                     <div className="composer-row">
                         <div className="composer-inner">
                             <textarea
+                                ref={historyInputRef}
                                 rows={1}
                                 value={historyMessage}
                                 onChange={e => {
@@ -1658,7 +1669,12 @@ function Chat() {
                                 aria-label="Message"
                                 style={{ resize: "none" }}
                             />
-                            <button className="send-btn" type="submit" aria-label="Send">
+                            <button
+                                className="send-btn"
+                                type="submit"
+                                aria-label="Send"
+                                onPointerDown={e => e.preventDefault()}
+                            >
                                 <Send size={14} />
                             </button>
                         </div>
