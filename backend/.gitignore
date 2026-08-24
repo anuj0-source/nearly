@@ -4,3 +4,4 @@ app/api/routes/__pycache__
 app/.env
 __pycache__/
 *.py[cod]
+app/models/__pycache__
