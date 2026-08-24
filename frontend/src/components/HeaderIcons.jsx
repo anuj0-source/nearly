@@ -58,6 +58,10 @@ export default function HeaderIcons({ session }) {
         }
         fetchFriendRequests();
         fetchConversations();
+        
+        const handleForceRefresh = () => fetchConversations();
+        window.addEventListener("force_conversations_refresh", handleForceRefresh);
+        return () => window.removeEventListener("force_conversations_refresh", handleForceRefresh);
     }, []);
 
     // WebSocket listener for live updates

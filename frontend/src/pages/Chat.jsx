@@ -465,6 +465,8 @@ function Chat() {
                 setChatState("setup");
                 setActiveConv(null);
                 conversationIdRef.current = null;
+                window.activeLiveMatchSessionId = null;
+                startMatching();
                 setSearchParams({}, { replace: true });
             } finally {
                 setHistoryLoading(false);
@@ -632,6 +634,8 @@ function Chat() {
 
                     const convId = payload.conversation_id;
                     conversationIdRef.current = convId;
+                    
+                    window.activeLiveMatchSessionId = payload.match?.session_id;
 
                     // Fire-and-forget: load messages sent while we were offline.
                     if (convId) {
@@ -684,6 +688,8 @@ function Chat() {
                         fetch(`${BACKEND_URL}/api/messages/read/${incomingConvId}`, {
                             method: "POST",
                             credentials: "include"
+                        }).then(() => {
+                            window.dispatchEvent(new CustomEvent("force_conversations_refresh"));
                         }).catch(console.error);
                     } 
                     // 2. Is it for the currently active LIVE MATCH conversation?
@@ -703,6 +709,8 @@ function Chat() {
                             fetch(`${BACKEND_URL}/api/messages/read/${incomingConvId}`, {
                                 method: "POST",
                                 credentials: "include"
+                            }).then(() => {
+                                window.dispatchEvent(new CustomEvent("force_conversations_refresh"));
                             }).catch(console.error);
                         }
                     }
@@ -1226,6 +1234,7 @@ function Chat() {
         setChatState("setup");
         setActiveConv(null);
         conversationIdRef.current = null;
+        window.activeLiveMatchSessionId = null;
     }
 
 

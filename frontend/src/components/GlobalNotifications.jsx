@@ -95,7 +95,7 @@ export default function GlobalNotifications() {
                 } 
                 else if (data.type === "chat_message") {
                     // Show toast if user is not on chat page, or if they are on chat but talking to someone else
-                    if (location.pathname !== "/chat" || activePartner !== data.sender_id) {
+                    if (location.pathname !== "/chat" || (activePartner !== data.sender_id && window.activeLiveMatchSessionId !== data.sender_id)) {
                         const id = Date.now().toString() + Math.random().toString();
                         const toast = {
                             id,
