@@ -4315,3 +4315,26 @@ a { color: inherit; text-decoration: none; }
     color: #ef4444;
 }
 .freq-reject:hover { background: color-mix(in srgb, #ef4444 24%, transparent); }
+
+/* Global Skeleton List Loader */
+.skeleton-list-item {
+    position: relative;
+    overflow: hidden;
+    background-color: var(--line);
+}
+.skeleton-list-item::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    transform: translateX(-100%);
+    background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--paper) 58%, transparent), transparent);
+    animation: skeletonShimmer 1.25s infinite;
+}
+.skeleton-avatar-lg { width: 56px; height: 56px; border-radius: 50%; flex-shrink: 0; }
+.skeleton-avatar-md { width: 44px; height: 44px; border-radius: 50%; flex-shrink: 0; }
+.skeleton-avatar-sm { width: 38px; height: 38px; border-radius: 50%; flex-shrink: 0; }
+.skeleton-text-lg { width: 140px; height: 16px; border-radius: 999px; }
+.skeleton-text-md { width: 110px; height: 14px; border-radius: 999px; }
+.skeleton-text-sm { width: 80px; height: 12px; border-radius: 999px; margin-top: 6px; }
+.skeleton-action-btn { width: 36px; height: 36px; border-radius: 999px; flex-shrink: 0; }
+.skeleton-action-sm { width: 28px; height: 28px; border-radius: 999px; flex-shrink: 0; }

@@ -234,8 +234,10 @@ function Chat() {
 
     const [friendRequests, setFriendRequests] =
         useState([]);
+    const [friendRequestsLoading, setFriendRequestsLoading] = useState(false);
 
     const [conversations, setConversations] = useState([]);
+    const [conversationsLoading, setConversationsLoading] = useState(false);
     const [showConversations, setShowConversations] = useState(false);
     const [activeConv, setActiveConv] = useState(null);       // selected conversation object
     const [historyMessages, setHistoryMessages] = useState([]); // loaded messages for history view
@@ -987,8 +989,10 @@ function Chat() {
             setShowRequests(false);
             return;
         }
-        await fetchFriendRequests();
         setShowRequests(true);
+        setFriendRequestsLoading(true);
+        await fetchFriendRequests();
+        setFriendRequestsLoading(false);
     }
 
     async function fetchConversations() {
@@ -1010,8 +1014,10 @@ function Chat() {
             setShowConversations(false);
             return;
         }
-        await fetchConversations();
         setShowConversations(true);
+        setConversationsLoading(true);
+        await fetchConversations();
+        setConversationsLoading(false);
     }
 
     async function openConversation(conv) {
@@ -1322,7 +1328,17 @@ function Chat() {
 
                                 {/* ── List ── */}
                                 <div className="conv-list">
-                                    {conversations.length === 0 ? (
+                                    {conversationsLoading ? (
+                                        Array.from({ length: 3 }).map((_, i) => (
+                                            <div key={i} className="conv-item" style={{ pointerEvents: "none" }}>
+                                                <div className="skeleton-list-item skeleton-avatar-md" />
+                                                <div className="conv-item-body">
+                                                    <div className="skeleton-list-item skeleton-text-md" />
+                                                    <div className="skeleton-list-item skeleton-text-sm" style={{ marginTop: 8 }} />
+                                                </div>
+                                            </div>
+                                        ))
+                                    ) : conversations.length === 0 ? (
                                         <div className="conv-empty">
                                             <div className="conv-empty-icon">
                                                 <MessageCircle size={28} strokeWidth={1.4} />
@@ -1423,7 +1439,20 @@ function Chat() {
 
                                 {/* ── List ── */}
                                 <div className="conv-list">
-                                    {friendRequests.length === 0 ? (
+                                    {friendRequestsLoading ? (
+                                        Array.from({ length: 3 }).map((_, i) => (
+                                            <div key={i} className="conv-item freq-item" style={{ pointerEvents: "none" }}>
+                                                <div className="skeleton-list-item skeleton-avatar-md" />
+                                                <div className="conv-item-body" style={{ flex: 1, paddingLeft: 12 }}>
+                                                    <div className="skeleton-list-item skeleton-text-md" />
+                                                </div>
+                                                <div className="freq-actions" style={{ display: "flex", gap: 6 }}>
+                                                    <div className="skeleton-list-item skeleton-action-sm" />
+                                                    <div className="skeleton-list-item skeleton-action-sm" />
+                                                </div>
+                                            </div>
+                                        ))
+                                    ) : friendRequests.length === 0 ? (
                                         <div className="conv-empty">
                                             <div className="conv-empty-icon">
                                                 <BadgeCheck size={28} strokeWidth={1.4} />

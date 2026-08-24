@@ -8,6 +8,7 @@ const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
 function Friends() {
     const navigate = useNavigate();
     const [friends, setFriends] = useState([]);
+    const [loadingFriends, setLoadingFriends] = useState(true);
     const [loadingChat, setLoadingChat] = useState(null); // session_id of friend being opened
 
     useEffect(() => {
@@ -25,6 +26,8 @@ function Friends() {
                 }
             } catch (error) {
                 console.error("Error fetching friends:", error);
+            } finally {
+                setLoadingFriends(false);
             }
         }
         
@@ -99,7 +102,21 @@ function Friends() {
             </header>
 
             <div className="match-list">
-                {friends.length === 0 ? (
+                {loadingFriends ? (
+                    Array.from({ length: 5 }).map((_, i) => (
+                        <article key={i} className="friend-card" style={{ "--i": i, pointerEvents: "none", border: "none" }}>
+                            <div className="friend-card-avatar skeleton-list-item skeleton-avatar-lg" />
+                            <div className="friend-card-body">
+                                <div className="skeleton-list-item skeleton-text-lg" />
+                                <div className="skeleton-list-item skeleton-text-sm" />
+                            </div>
+                            <div style={{ display: "flex", gap: 8 }}>
+                                <div className="skeleton-list-item skeleton-action-btn" />
+                                <div className="skeleton-list-item skeleton-action-btn" />
+                            </div>
+                        </article>
+                    ))
+                ) : friends.length === 0 ? (
                     <p style={{ color: "var(--text-secondary)", marginTop: 24, fontSize: 14 }}>You haven't added any friends yet.</p>
                 ) : (
                     friends.map((person, i) => (
