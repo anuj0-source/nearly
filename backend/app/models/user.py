@@ -1,5 +1,6 @@
 from datetime import datetime
 from typing import List
+from sqlalchemy import Boolean
 
 from sqlalchemy import (
     String,
@@ -123,6 +124,11 @@ class AnonymousSession(Base):
     status: Mapped[str] = mapped_column(
         String(50),
         default="active"
+    )
+
+    is_nearby_enabled: Mapped[bool] = mapped_column(
+        Boolean,
+        default=False
     )
 
     created_at: Mapped[datetime] = mapped_column(

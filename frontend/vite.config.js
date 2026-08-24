@@ -6,5 +6,13 @@ export default defineConfig({
   plugins: [react()],
   server: {
     host: "0.0.0.0",
+    proxy: {
+      // Forward all /api/* requests to the FastAPI backend
+      '/api': {
+        target: 'http://127.0.0.1:8000',
+        changeOrigin: true,
+      },
+    },
   },
 })
+

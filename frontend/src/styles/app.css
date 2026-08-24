@@ -2679,15 +2679,15 @@ a { color: inherit; text-decoration: none; }
 .nearby-avatar {
     width: 52px;
     height: 52px;
-    border-radius: 18px;
+    border-radius: 50%;
     display: grid;
     place-items: center;
-    background: color-mix(in srgb, var(--cool) 9%, var(--surface));
+    background: transparent;
     transition: transform 0.25s ease;
 }
 .nearby-avatar .av {
-    width: 50px;
-    height: 50px;
+    width: 52px;
+    height: 52px;
     border: 1px solid color-mix(in srgb, var(--accent) 28%, var(--line-strong));
     box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 8%, transparent), 0 10px 18px -16px color-mix(in srgb, var(--ink) 82%, transparent);
 }
@@ -2759,6 +2759,40 @@ a { color: inherit; text-decoration: none; }
     white-space: nowrap;
 }
 
+.nearby-actions {
+    display: flex;
+    gap: 6px;
+    margin-left: auto;
+}
+.nearby-action-btn {
+    display: inline-grid;
+    place-items: center;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: var(--surface);
+    color: var(--muted);
+    border: 1px solid var(--line);
+    transition: all 0.2s ease;
+}
+.nearby-action-btn:hover {
+    background: var(--surface-2);
+    color: var(--ink);
+    border-color: var(--line-strong);
+    transform: scale(1.05);
+}
+.nearby-action-btn:active {
+    transform: scale(0.95);
+}
+.nearby-action-btn.primary {
+    background: var(--accent);
+    color: white;
+    border: none;
+}
+.nearby-action-btn.primary:hover {
+    background: color-mix(in srgb, var(--accent) 85%, black);
+}
+
 @keyframes cardIn {
     0%   { opacity: 0; transform: translateY(8px); }
     100% { opacity: 1; transform: translateY(0); }
@@ -2769,9 +2803,166 @@ a { color: inherit; text-decoration: none; }
     50%      { transform: scale(1.15); box-shadow: 0 0 0 4px transparent; }
 }
 
+/* ── Nearby header right-side layout ───────────────────────────────────────── */
+.nearby-header-right {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.nearby-count {
+    font-size: 13px;
+    color: var(--muted);
+}
+
+/* ── Location toggle pill ───────────────────────────────────────────────────── */
+.nearby-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 12px 6px 6px;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    background: var(--surface);
+    cursor: pointer;
+    transition: background 0.2s, border-color 0.2s, opacity 0.15s;
+    white-space: nowrap;
+    user-select: none;
+}
+
+.nearby-toggle:disabled { opacity: 0.6; cursor: default; }
+
+.nearby-toggle--on {
+    border-color: color-mix(in srgb, var(--accent) 40%, var(--line));
+    background: color-mix(in srgb, var(--accent) 8%, var(--surface));
+}
+
+.nearby-toggle-track {
+    position: relative;
+    width: 32px;
+    height: 18px;
+    border-radius: 999px;
+    background: var(--line);
+    flex-shrink: 0;
+    transition: background 0.25s;
+}
+
+.nearby-toggle--on .nearby-toggle-track {
+    background: var(--accent);
+}
+
+.nearby-toggle-thumb {
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: transform 0.25s cubic-bezier(.4,0,.2,1);
+    color: var(--muted);
+    box-shadow: 0 1px 3px rgba(0,0,0,.25);
+}
+
+.nearby-toggle--on .nearby-toggle-thumb {
+    transform: translateX(14px);
+    color: var(--accent);
+}
+
+.nearby-toggle-label {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--muted);
+    transition: color 0.2s;
+}
+
+.nearby-toggle--on .nearby-toggle-label { color: var(--accent); }
+
+/* ── Disabled empty state ───────────────────────────────────────────────────── */
+.nearby-disabled {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 72px 24px;
+    gap: 16px;
+    animation: cardIn 0.35s ease both;
+}
+
+.nearby-disabled-icon {
+    width: 64px;
+    height: 64px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    color: var(--muted);
+    margin-bottom: 4px;
+}
+
+.nearby-disabled-title {
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--ink);
+    margin: 0;
+}
+
+.nearby-disabled-body {
+    font-size: 13px;
+    color: var(--muted);
+    max-width: 320px;
+    line-height: 1.6;
+    margin: 0;
+}
+
+.nearby-disabled-cta {
+    margin-top: 8px;
+    padding: 10px 24px;
+    border-radius: 999px;
+    background: var(--accent);
+    color: #fff;
+    font-size: 13px;
+    font-weight: 650;
+    border: none;
+    cursor: pointer;
+    transition: opacity 0.15s, transform 0.15s;
+}
+
+.nearby-disabled-cta:hover { opacity: 0.88; transform: translateY(-1px); }
+.nearby-disabled-cta:active { transform: translateY(0); }
+.nearby-disabled-cta:disabled { opacity: 0.55; cursor: default; transform: none; }
+
+/* ── Nearby Skeleton ─────────────────────────────────────────────────────── */
+.nearby-skeleton-card { pointer-events: none; }
+.nearby-skeleton-card .nearby-avatar { background: var(--skeleton); }
+.nearby-skeleton-card .skeleton-line {
+    background: var(--skeleton);
+    border-radius: 999px;
+    position: relative;
+    overflow: hidden;
+}
+.nearby-skeleton-card .skeleton-line::after {
+    content: "";
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.08) 50%, transparent 100%);
+    animation: skeletonShimmer 1.25s infinite;
+}
+.nearby-skeleton-card .skeleton-title { width: 110px; height: 15px; margin-bottom: 6px; }
+.nearby-skeleton-card .skeleton-desc { width: 70px; height: 11px; }
+.nearby-skeleton-card .skeleton-status { width: 56px; height: 22px; border-radius: 12px; margin-left: auto; }
+.nearby-skeleton-card .skeleton-dist { width: 44px; height: 12px; }
+
 /* =============================================================
    PROFILE
    ============================================================= */
+
 .profile-grid {
     display: grid;
     grid-template-columns: 1fr 1.2fr;
@@ -3042,7 +3233,7 @@ a { color: inherit; text-decoration: none; }
 }
 
 .theme-dark .match-avatar,
-.theme-dark .nearby-avatar { background: #202026; }
+.theme-dark .nearby-avatar { background: transparent; }
 
 .theme-dark .match-avatar .av,
 .theme-dark .nearby-avatar .av,
@@ -3552,8 +3743,8 @@ a { color: inherit; text-decoration: none; }
     .nearby-grid { grid-template-columns: 1fr; }
     .nearby-head { gap: 10px; }
     .nearby-identity { grid-template-columns: 46px minmax(0, 1fr); gap: 10px; }
-    .nearby-avatar { width: 46px; height: 46px; border-radius: 16px; }
-    .nearby-avatar .av { width: 44px; height: 44px; }
+    .nearby-avatar { width: 46px; height: 46px; border-radius: 50%; background: transparent; }
+    .nearby-avatar .av { width: 46px; height: 46px; }
     .nearby-meta h3 { font-size: 14px; }
     .nearby-status { padding: 5px 7px; font-size: 9.5px; }
 
@@ -3730,8 +3921,8 @@ a { color: inherit; text-decoration: none; }
     .nearby-grid { grid-template-columns: 1fr; }
     .nearby-head { gap: 10px; }
     .nearby-identity { grid-template-columns: 46px minmax(0, 1fr); gap: 10px; }
-    .nearby-avatar { width: 46px; height: 46px; border-radius: 16px; }
-    .nearby-avatar .av { width: 44px; height: 44px; }
+    .nearby-avatar { width: 46px; height: 46px; border-radius: 50%; background: transparent; }
+    .nearby-avatar .av { width: 46px; height: 46px; }
     .nearby-meta h3 { font-size: 14px; }
     .nearby-status { padding: 5px 7px; font-size: 9.5px; }
 

@@ -2,7 +2,7 @@ from fastapi import APIRouter, Cookie, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
-
+import uuid
 from models.user import AnonymousSession
 from models.message import Message
 from models.conversation import Conversation
@@ -47,9 +47,6 @@ async def get_conversations(
         .order_by(Conversation.created_at.desc())
     ).all()
 
-    # Enrich each conversation with the partner's real name, avatar, and live status.
-    # Use manager.connections (the live WebSocket registry) as the source of truth
-    # rather than the DB status field, which can be stale.
     from api.routes.chat import manager as ws_manager
     result = []
     for conv in conversations:
@@ -143,8 +140,8 @@ async def get_friend_messages(
         select(AnonymousSession)
         .where(AnonymousSession.session_id == partner_session_id)
     )
-    if not friend:
-        raise HTTPException(status_code=404, detail="Friend not found")
+    # if not friend:
+    #     raise HTTPException(status_code=404, detail="Friend not found")
 
     # SQLAlchemy requires & / | for column-level boolean logic, not Python and/or
     conversation = db.scalar(
@@ -162,7 +159,14 @@ async def get_friend_messages(
     )
 
     if not conversation:
-        raise HTTPException(status_code=404, detail="Conversation not found")
+        conversation=Conversation(
+            conversation_id=str(uuid.uuid4()),
+            user1_session_id=session_id,
+            user2_session_id=partner_session_id
+        )
+        db.add(conversation)
+        db.commit()
+        db.refresh(conversation)
 
     messages = db.scalars(
         select(Message)
