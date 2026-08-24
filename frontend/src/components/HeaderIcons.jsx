@@ -70,9 +70,9 @@ export default function HeaderIcons({ session }) {
             try {
                 const data = JSON.parse(event.data);
                 if (data.type === "notification") {
-                    if (data.event === "friend_request") {
+                    if (data.event === "Sent friend request") {
                         fetchFriendRequests();
-                    } else if (data.event === "friend_request_accepted") {
+                    } else if (data.event === "Accepted your friend request") {
                         fetchConversations();
                     }
                 } else if (data.type === "chat_message") {
@@ -104,6 +104,7 @@ export default function HeaderIcons({ session }) {
             const response = await fetch(`${BACKEND_URL}/api/friend/requests`, {
                 method: "GET",
                 credentials: "include",
+                cache: "no-store",
             });
             if (response.ok) {
                 const data = await response.json();

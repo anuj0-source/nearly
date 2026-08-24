@@ -7,12 +7,17 @@ from database import engine,Base
 from api.routes.chat import router as chat_router
 from api.routes.friend import router as friend_router
 from api.routes.messages import router as messages_router
+from sqlalchemy import text
 
 app=FastAPI(
     title="Nearly API",
     description="Anonymous nearby chat platform",
     version="1.0.0"
 )
+
+with engine.connect() as conn:
+    conn.execute(text("CREATE EXTENSION IF NOT EXISTS postgis;"))
+    conn.commit()
 
 Base.metadata.create_all(bind=engine)
 
