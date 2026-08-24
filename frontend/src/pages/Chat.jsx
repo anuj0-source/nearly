@@ -457,12 +457,14 @@ function Chat() {
                     console.error("Direct conversation fetch failed", res.status);
                     setChatState("setup");
                     setActiveConv(null);
+                    conversationIdRef.current = null;
                     setSearchParams({}, { replace: true });
                 }
             } catch (err) {
                 console.error("Failed to load direct conversation history:", err);
                 setChatState("setup");
                 setActiveConv(null);
+                conversationIdRef.current = null;
                 setSearchParams({}, { replace: true });
             } finally {
                 setHistoryLoading(false);
@@ -660,9 +662,8 @@ function Chat() {
                 if (payload.type === "chat_message") {
                     const incomingConvId = payload.conversation_id;
 
-                    // If we are currently viewing a history conversation that matches,
-                    // append the message there instead of (or as well as) the live chat.
-                    if (incomingConvId) {
+                    // 1. Is it for the currently active HISTORY conversation?
+                    if (incomingConvId && activeConvRef.current?.conversation_id === incomingConvId) {
                         setHistoryMessages(prev => [
                             ...prev,
                             createChatMessage({
@@ -679,14 +680,15 @@ function Chat() {
                             });
                         });
                         
-                        // If this is the currently active conversation, mark as read
-                        if (activeConvRef.current?.conversation_id === incomingConvId) {
-                            fetch(`${BACKEND_URL}/api/messages/read/${incomingConvId}`, {
-                                method: "POST",
-                                credentials: "include"
-                            }).catch(console.error);
-                        }
-                    } else {
+                        // Mark as read
+                        fetch(`${BACKEND_URL}/api/messages/read/${incomingConvId}`, {
+                            method: "POST",
+                            credentials: "include"
+                        }).catch(console.error);
+                    } 
+                    // 2. Is it for the currently active LIVE MATCH conversation?
+                    // We check if it matches conversationIdRef.current, OR if incomingConvId is missing (fallback)
+                    else if (!incomingConvId || conversationIdRef.current === incomingConvId) {
                         setMessages((current) => [
                             ...current,
                             createChatMessage({
@@ -695,6 +697,14 @@ function Chat() {
                                 text: payload.text,
                             }),
                         ]);
+                        
+                        // Mark as read
+                        if (incomingConvId) {
+                            fetch(`${BACKEND_URL}/api/messages/read/${incomingConvId}`, {
+                                method: "POST",
+                                credentials: "include"
+                            }).catch(console.error);
+                        }
                     }
                     return;
                 }
@@ -1215,6 +1225,7 @@ function Chat() {
 
         setChatState("setup");
         setActiveConv(null);
+        conversationIdRef.current = null;
     }
 
 
