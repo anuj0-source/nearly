@@ -60,6 +60,14 @@ async def get_conversations(
             .where(AnonymousSession.session_id == partner_session_id)
         )
         is_online = partner_session_id in ws_manager.connections
+
+        last_message = db.scalar(
+            select(Message)
+            .where(Message.conversation_id == conv.conversation_id)
+            .order_by(Message.created_at.desc())
+            .limit(1)
+        )
+
         result.append({
             "conversation_id": conv.conversation_id,
             "user1_session_id": conv.user1_session_id,
@@ -69,7 +77,12 @@ async def get_conversations(
             "partner_avatar": partner.avatar if partner else None,
             "partner_status": "active" if is_online else "inactive",
             "is_friend": partner in user.friends if partner else False,
+            "last_message_text": last_message.message if last_message else None,
+            "last_message_time": last_message.created_at if last_message else None,
         })
+
+    # Sort so the most recently active conversations appear at the top
+    result.sort(key=lambda x: x["last_message_time"] or x["created_at"], reverse=True)
 
     return result
 

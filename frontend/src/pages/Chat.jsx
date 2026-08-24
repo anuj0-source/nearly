@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import AnonymousAvatar from "../components/AnonymousAvatar";
 import GhostMark from "../components/GhostMark";
+import HeaderIcons from "../components/HeaderIcons";
 import { anonymousPeople } from "../data/mockData";
 import { useNavigate, useLocation, useSearchParams } from "react-router-dom";
 
@@ -1060,7 +1061,7 @@ function Chat() {
                     id: String(m.id),
                     sender: m.sender_id === session?.session_id ? "me" : "them",
                     text: m.message,
-                    createdAt: m.created_at,
+                    createdAt: m.created_at.endsWith("Z") ? m.created_at : m.created_at + "Z",
                 }));
                 setHistoryMessages(mapped);
             }
@@ -1307,212 +1308,7 @@ function Chat() {
         return (
             <section className="chat-setup">
                 <div style={{ position: "absolute", top: 24, right: 24, display: "flex", gap: 12, zIndex: 10 }}>
-                    <div ref={conversationsDropdownRef} style={{ position: "relative" }}>
-                        <button className="ix-btn" type="button" aria-label="Messages" {...(!showConversations ? { "data-tooltip": "Messages" } : {})} onClick={toggleConversations}>
-                            <MessageCircle size={22} strokeWidth={1.75} />
-                        </button>
-                        {showConversations && (
-                            <div className="conv-panel">
-                                {/* ── Header ── */}
-                                <div className="conv-header">
-                                    <div className="conv-header-left">
-                                        <div className="conv-header-icon">
-                                            <MessageCircle size={15} strokeWidth={2.2} />
-                                        </div>
-                                        <span className="conv-header-title">Messages</span>
-                                    </div>
-                                    {conversations.length > 0 && (
-                                        <span className="conv-header-count">{conversations.length}</span>
-                                    )}
-                                </div>
-
-                                {/* ── List ── */}
-                                <div className="conv-list">
-                                    {conversationsLoading ? (
-                                        Array.from({ length: 3 }).map((_, i) => (
-                                            <div key={i} className="conv-item" style={{ pointerEvents: "none" }}>
-                                                <div className="skeleton-list-item skeleton-avatar-md" />
-                                                <div className="conv-item-body">
-                                                    <div className="skeleton-list-item skeleton-text-md" />
-                                                    <div className="skeleton-list-item skeleton-text-sm" style={{ marginTop: 8 }} />
-                                                </div>
-                                            </div>
-                                        ))
-                                    ) : conversations.length === 0 ? (
-                                        <div className="conv-empty">
-                                            <div className="conv-empty-icon">
-                                                <MessageCircle size={28} strokeWidth={1.4} />
-                                            </div>
-                                            <p className="conv-empty-title">No messages yet</p>
-                                            <p className="conv-empty-sub">Start a chat to see your conversations here</p>
-                                        </div>
-                                    ) : (
-                                        conversations.map((conv, i) => {
-                                            const otherId = conv.user1_session_id === session?.session_id ? conv.user2_session_id : conv.user1_session_id;
-                                            const partnerName = conv.partner_name || `Anon ${otherId?.substring(0, 6)}`;
-                                            const partnerAvatar = conv.partner_avatar;
-                                            const initials = partnerName.split(" ").map(w => w[0]).join("").substring(0, 2).toUpperCase();
-                                            const createdDate = new Date(conv.created_at);
-                                            const now = new Date();
-                                            const diffMs = now - createdDate;
-                                            const diffMins = Math.floor(diffMs / 60000);
-                                            const diffHrs = Math.floor(diffMins / 60);
-                                            const diffDays = Math.floor(diffHrs / 24);
-                                            let timeLabel;
-                                            if (diffMins < 1) timeLabel = "just now";
-                                            else if (diffMins < 60) timeLabel = `${diffMins}m ago`;
-                                            else if (diffHrs < 24) timeLabel = `${diffHrs}h ago`;
-                                            else if (diffDays < 7) timeLabel = `${diffDays}d ago`;
-                                            else timeLabel = createdDate.toLocaleDateString(undefined, { month: "short", day: "numeric" });
-
-                                            return (
-                                                <div key={i} className="conv-item" onClick={() => openConversation(conv)} role="button" tabIndex={0} onKeyDown={e => e.key === "Enter" && openConversation(conv)}>
-                                                    <div className="conv-avatar" data-seed={i % 6}>
-                                                        {partnerAvatar ? (
-                                                            <img
-                                                                src={partnerAvatar}
-                                                                alt={partnerName}
-                                                                className="conv-avatar-img"
-                                                                onError={e => { e.currentTarget.style.display = "none"; e.currentTarget.nextSibling.style.display = "flex"; }}
-                                                            />
-                                                        ) : null}
-                                                        <span className="conv-avatar-fallback" style={{ display: partnerAvatar ? "none" : "flex" }}>
-                                                            {initials}
-                                                        </span>
-                                                    </div>
-                                                    <div className="conv-item-body">
-                                                        <div className="conv-item-top">
-                                                            <span className="conv-item-name">{partnerName}</span>
-                                                            <span className="conv-item-time">{timeLabel}</span>
-                                                        </div>
-                                                        <span className="conv-item-preview">Tap to open conversation</span>
-                                                    </div>
-
-                                                </div>
-                                            );
-                                        })
-                                    )}
-                                </div>
-                            </div>
-                        )}
-                    </div>
-                    <div ref={requestsDropdownRef} style={{ position: "relative" }}>
-                        <button className="ix-btn" style={{ position: "relative" }} type="button" aria-label="Friend requests" {...(!showRequests ? { "data-tooltip": "Friend requests" } : {}) } onClick={toggleFriendRequests}>
-                            <ReceiveRequestIcon size={22} strokeWidth={1.75} />
-                            {friendRequests.length > 0 && (
-                                <span style={{
-                                    position: "absolute",
-                                    top: -2,
-                                    right: -2,
-                                    background: "var(--primary-color, #f43f5e)",
-                                    color: "white",
-                                    fontSize: 9,
-                                    fontWeight: "bold",
-                                    width: 14,
-                                    height: 14,
-                                    borderRadius: "50%",
-                                    display: "flex",
-                                    alignItems: "center",
-                                    justifyContent: "center",
-                                    pointerEvents: "none",
-                                    boxShadow: "0 0 0 2px var(--bg, #F6F5F1)"
-                                }}>
-                                    {friendRequests.length}
-                                </span>
-                            )}
-                        </button>
-                        {showRequests && (
-                            <div className="conv-panel">
-
-                                {/* ── Header ── */}
-                                <div className="conv-header">
-                                    <div className="conv-header-left">
-                                        <div className="conv-header-icon">
-                                            <ReceiveRequestIcon size={15} strokeWidth={2.2} color="#fff" />
-                                        </div>
-                                        <span className="conv-header-title">Friend Requests</span>
-                                    </div>
-                                    {friendRequests.length > 0 && (
-                                        <span className="conv-header-count">{friendRequests.length}</span>
-                                    )}
-                                </div>
-
-                                {/* ── List ── */}
-                                <div className="conv-list">
-                                    {friendRequestsLoading ? (
-                                        Array.from({ length: 3 }).map((_, i) => (
-                                            <div key={i} className="conv-item freq-item" style={{ pointerEvents: "none" }}>
-                                                <div className="skeleton-list-item skeleton-avatar-md" />
-                                                <div className="conv-item-body" style={{ flex: 1, paddingLeft: 12 }}>
-                                                    <div className="skeleton-list-item skeleton-text-md" />
-                                                </div>
-                                                <div className="freq-actions" style={{ display: "flex", gap: 6 }}>
-                                                    <div className="skeleton-list-item skeleton-action-sm" />
-                                                    <div className="skeleton-list-item skeleton-action-sm" />
-                                                </div>
-                                            </div>
-                                        ))
-                                    ) : friendRequests.length === 0 ? (
-                                        <div className="conv-empty">
-                                            <div className="conv-empty-icon">
-                                                <BadgeCheck size={28} strokeWidth={1.4} />
-                                            </div>
-                                            <p className="conv-empty-title">All caught up!</p>
-                                            <p className="conv-empty-sub">No pending friend requests right now</p>
-                                        </div>
-                                    ) : (
-                                        friendRequests.map((req, i) => (
-                                            <div key={i} className="conv-item freq-item">
-                                                <div className="conv-avatar" data-seed={i % 6}>
-                                                    {req.avatar ? (
-                                                        <img
-                                                            src={req.avatar}
-                                                            alt={req.name}
-                                                            className="conv-avatar-img"
-                                                            onError={e => { e.currentTarget.style.display = "none"; e.currentTarget.nextSibling.style.display = "flex"; }}
-                                                        />
-                                                    ) : null}
-                                                    <span className="conv-avatar-fallback" style={{ display: req.avatar ? "none" : "flex" }}>
-                                                        {(req.name || "?").split(" ").map(w => w[0]).join("").substring(0, 2).toUpperCase()}
-                                                    </span>
-                                                </div>
-
-                                                <div className="conv-item-body">
-                                                    <div className="conv-item-top">
-                                                        <span className="conv-item-name">{req.name || "Anonymous"}</span>
-                                                    </div>
-                                                    <span className="conv-item-preview">Wants to be your friend</span>
-                                                </div>
-
-                                                <div className="freq-actions">
-                                                    <button
-                                                        className="freq-btn freq-accept"
-                                                        aria-label="Accept"
-                                                        title="Accept"
-                                                        onClick={() => acceptFriendRequest(req.session_id)}
-                                                    >
-                                                        <Check size={14} strokeWidth={2.5} />
-                                                    </button>
-                                                    <button
-                                                        className="freq-btn freq-reject"
-                                                        aria-label="Reject"
-                                                        title="Reject"
-                                                        onClick={() => rejectFriendRequest(req.session_id)}
-                                                    >
-                                                        <X size={14} strokeWidth={2.5} />
-                                                    </button>
-                                                </div>
-                                            </div>
-                                        ))
-                                    )}
-                                </div>
-
-                            </div>
-                        )}
-                    </div>
-                    <button className="ix-btn" type="button" aria-label="Notifications" data-tooltip="Notifications" onClick={() => {}}>
-                        <Bell size={22} strokeWidth={1.75} />
-                    </button>
+                    <HeaderIcons session={session} />
                 </div>
 
                 <div
