@@ -2520,46 +2520,68 @@ a { color: inherit; text-decoration: none; }
 
 .nearby-radar {
     position: relative;
-    margin: 0 auto 8px;
+    margin: 0 auto 16px;
     aspect-ratio: 1;
-    width: min(360px, 70%);
-    border: 1px solid var(--line);
-    border-radius: 18px;
-    background: var(--paper);
+    width: min(340px, 80%);
+    border: 1px solid color-mix(in srgb, var(--line-strong) 30%, transparent);
+    border-radius: 50%;
+    background: radial-gradient(circle at center, color-mix(in srgb, var(--paper) 40%, transparent), var(--paper));
     overflow: hidden;
+    box-shadow: inset 0 0 40px color-mix(in srgb, var(--line) 40%, transparent), 0 10px 30px -10px color-mix(in srgb, var(--ink) 5%, transparent);
 }
+
+.nearby-radar .beam {
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    background: conic-gradient(from 0deg at 50% 50%, transparent 60%, color-mix(in srgb, var(--accent) 15%, transparent) 95%, color-mix(in srgb, var(--accent) 45%, transparent) 100%);
+    animation: radar-scan 4s linear infinite;
+    pointer-events: none;
+    z-index: 1;
+}
+
+@keyframes radar-scan {
+    to { transform: rotate(360deg); }
+}
+
 .nearby-radar::before {
     content: "";
     position: absolute;
-    inset: 8%;
-    border: 1px solid var(--line);
+    inset: 15%;
+    border: 1px dashed var(--line-strong);
     border-radius: 50%;
+    pointer-events: none;
+    z-index: 0;
 }
+
 .nearby-radar::after {
     content: "";
     position: absolute;
-    inset: 28%;
-    border: 1px solid var(--line);
+    inset: 34%;
+    border: 1px dashed var(--line-strong);
     border-radius: 50%;
+    pointer-events: none;
+    z-index: 0;
 }
+
 .nearby-radar .core {
     position: absolute;
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%);
-    width: 56px;
-    height: 56px;
+    width: 52px;
+    height: 52px;
     display: grid;
     place-items: center;
     border-radius: 50%;
-    border: 1px solid var(--line-strong);
+    border: 1px solid color-mix(in srgb, var(--line-strong) 60%, transparent);
     overflow: hidden;
-    background: #08080d;
+    background: var(--paper);
     color: var(--ink);
-    opacity: 0.85;
-    font-size: 26px;
-    line-height: 1;
+    box-shadow: 0 4px 14px color-mix(in srgb, var(--ink) 12%, transparent);
+    z-index: 5;
 }
+.nearby-radar .core .ring-ghost-art { width: 70%; height: 70%; object-fit: contain; }
 .nearby-radar .core svg { width: 60%; height: 60%; }
 
 .nearby-radar .pip {
@@ -2569,30 +2591,34 @@ a { color: inherit; text-decoration: none; }
     border-radius: 50%;
     display: grid;
     place-items: center;
-    background: var(--paper);
-    border: 1px solid var(--line);
+    background: var(--surface);
+    border: 2px solid var(--paper);
+    box-shadow: 0 4px 12px color-mix(in srgb, var(--ink) 15%, transparent);
+    transform: translate(-50%, -50%);
+    z-index: 10;
+    transition: transform 0.25s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.nearby-radar .pip:hover {
+    transform: translate(-50%, -50%) scale(1.15);
+    z-index: 20;
 }
 .nearby-radar .pip .av { width: 28px; height: 28px; }
 
-.nearby-radar .pip.r1 { top: 14%; left: 14%; }
-.nearby-radar .pip.r2 { top: 18%; right: 12%; }
-.nearby-radar .pip.r3 { bottom: 16%; left: 14%; }
-.nearby-radar .pip.r4 { bottom: 18%; right: 14%; }
-.nearby-radar .pip.r5 { top: 50%; left: 6%; }
-
 .nearby-radar .dist-tag {
     position: absolute;
-    color: var(--faint);
-    font-size: 10.5px;
-    font-weight: 500;
-    background: var(--paper);
-    padding: 2px 6px;
-    border-radius: 4px;
-    border: 1px solid var(--line);
+    color: var(--ink);
+    font-size: 10px;
+    font-weight: 650;
+    background: color-mix(in srgb, var(--paper) 80%, transparent);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+    padding: 3px 8px;
+    border-radius: 12px;
+    border: 1px solid color-mix(in srgb, var(--line-strong) 40%, transparent);
+    box-shadow: 0 4px 10px color-mix(in srgb, var(--ink) 8%, transparent);
+    pointer-events: none;
+    z-index: 15;
 }
-.nearby-radar .dist-tag.t1 { top: 18%; left: calc(14% + 44px); }
-.nearby-radar .dist-tag.t2 { bottom: 22%; right: calc(14% + 44px); }
-.nearby-radar .dist-tag.t3 { top: 50%; right: calc(6% + 44px); transform: translateY(-50%); }
 
 .nearby-card {
     position: relative;

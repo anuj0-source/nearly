@@ -2,7 +2,7 @@ from fastapi import APIRouter,Response,Cookie,Depends
 from sqlalchemy.orm import Session
 import uuid
 import random
-from sqlalchemy import select
+from sqlalchemy import select, func
 
 from models.user import AnonymousSession
 from database import get_db
@@ -171,13 +171,17 @@ async def get_me(response:Response,session_id:str | None = Cookie(default=None),
         new_session_id=res["session_id"]
         user=db.scalar(select(AnonymousSession).where(AnonymousSession.session_id == new_session_id))
     
+    lon, lat = None, None
+    if user.location is not None:
+        lon, lat = db.execute(select(func.ST_X(user.location), func.ST_Y(user.location))).first()
+
     return {
         "session_id":user.session_id,
         "name":user.name,
         "avatar":user.avatar,
         "language":user.language,
         "gender":user.gender,
-        "latitude":user.latitude,
-        "longitude":user.longitude,
+        "latitude":lat,
+        "longitude":lon,
         "created_at":user.created_at
         }

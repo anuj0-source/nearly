@@ -159,6 +159,26 @@ function Nearby() {
             setToggling(false);
         }
     }
+    
+    // ── Radar Angles ────────────────────────────────────────────────────────
+    const [radarAngles, setRadarAngles] = useState({});
+
+    useEffect(() => {
+        setRadarAngles(prev => {
+            const next = { ...prev };
+            let changed = false;
+            nearbyPeoples.forEach((p, i) => {
+                if (!(p.session_id in next)) {
+                    // Distribute somewhat evenly around the circle, with some randomness
+                    const baseAngle = (i / Math.max(nearbyPeoples.length, 1)) * Math.PI * 2;
+                    const randomOffset = (Math.random() - 0.5) * (Math.PI / 4);
+                    next[p.session_id] = baseAngle + randomOffset;
+                    changed = true;
+                }
+            });
+            return changed ? next : prev;
+        });
+    }, [nearbyPeoples]);
 
     // ── Button handlers ───────────────────────────────────────────────────────
     async function handleMessageClick(person) {
@@ -241,15 +261,40 @@ function Nearby() {
             {nearbyEnabled ? (
                 <>
                     <aside className="nearby-radar" aria-hidden="true">
+                        <div className="beam"></div>
                         <div className="core"><img className="ring-ghost-art" src="/mask.png" alt="" /></div>
-                        <div className="pip r1"><AnonymousAvatar type="fox" /></div>
-                        <div className="pip r2"><AnonymousAvatar type="panda" /></div>
-                        <div className="pip r3"><AnonymousAvatar type="owl" /></div>
-                        <div className="pip r4"><AnonymousAvatar type="ghost" /></div>
-                        <div className="pip r5"><AnonymousAvatar type="cat" /></div>
-                        <span className="dist-tag t1">~800m</span>
-                        <span className="dist-tag t2">~2.1km</span>
-                        <span className="dist-tag t3">~1.2km</span>
+                        {nearbyPeoples.slice(0, 8).map((person) => {
+                            const angle = radarAngles[person.session_id] || 0;
+                            // distance up to 5000m maps to radius up to 42%
+                            const maxDist = 5000;
+                            // Ensure it's at least 22% away from center so it doesn't overlap core
+                            const minRadiusPct = 22;
+                            const maxRadiusPct = 42;
+                            const radiusPct = minRadiusPct + Math.min((person.distance_in_meters / maxDist), 1) * (maxRadiusPct - minRadiusPct);
+                            
+                            const top = 50 - radiusPct * Math.cos(angle);
+                            const left = 50 + radiusPct * Math.sin(angle);
+                            
+                            const distText = person.distance_in_meters >= 1000 
+                                ? (person.distance_in_meters/1000).toFixed(1) + 'km' 
+                                : Math.round(person.distance_in_meters) + 'm';
+
+                            return (
+                                <div 
+                                    key={`radar-${person.session_id}`} 
+                                    className="pip" 
+                                    style={{ top: `${top}%`, left: `${left}%` }}
+                                >
+                                    <AnonymousAvatar type={person.avatar} />
+                                    <span 
+                                        className="dist-tag" 
+                                        style={{ top: 'calc(100% - 4px)', left: '50%', transform: 'translateX(-50%)', whiteSpace: 'nowrap' }}
+                                    >
+                                        ~{distText}
+                                    </span>
+                                </div>
+                            );
+                        })}
                     </aside>
 
                     <div className="nearby-grid">

@@ -32,7 +32,7 @@ export async function getNearbyPeople() {
     }
 
     const data = await res.json();
-    return data["nearby peoples"] || [];
+    return data.nearby_peoples || data["nearby peoples"] || [];
 }
 
 export async function sendFriendRequest(friendId) {
