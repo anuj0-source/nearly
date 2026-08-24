@@ -177,20 +177,67 @@ export default function HeaderIcons({ session }) {
         setConversationsLoading(false);
     }
 
-    function openConversation(conv) {
+    async function openConversation(conv) {
         setShowConversations(false);
         const partnerSessionId = conv.user1_session_id === localSession?.session_id
             ? conv.user2_session_id
             : conv.user1_session_id;
+
+        // Mark as read in backend
+        if (conv.unread_count > 0) {
+            try {
+                await fetch(`${BACKEND_URL}/api/messages/read/${conv.conversation_id}`, {
+                    method: "POST",
+                    credentials: "include"
+                });
+                // Optimistically clear the unread count in UI
+                setConversations(prev => prev.map(c => 
+                    c.conversation_id === conv.conversation_id ? { ...c, unread_count: 0 } : c
+                ));
+            } catch (err) {
+                console.error("Failed to mark as read", err);
+            }
+        }
+
         navigate(`/chat?partner=${partnerSessionId}`);
     }
+
+    const searchParams = new URLSearchParams(window.location.search);
+    const partnerParam = searchParams.get("partner");
+    const isChatRoute = window.location.pathname === "/chat";
+
+    const totalUnread = conversations.reduce((acc, conv) => {
+        const isActive = isChatRoute && (conv.user1_session_id === partnerParam || conv.user2_session_id === partnerParam);
+        return acc + (isActive ? 0 : (conv.unread_count || 0));
+    }, 0);
 
     return (
         <div style={{ display: "flex", gap: 12, alignItems: "center", zIndex: 10 }}>
             {/* Conversations Dropdown */}
             <div ref={conversationsDropdownRef} style={{ position: "relative" }}>
-                <button className="ix-btn" type="button" aria-label="Messages" {...(!showConversations ? { "data-tooltip": "Messages" } : {})} onClick={toggleConversations}>
+                <button className="ix-btn" style={{ position: "relative" }} type="button" aria-label="Messages" {...(!showConversations ? { "data-tooltip": "Messages" } : {})} onClick={toggleConversations}>
                     <MessageCircle size={22} strokeWidth={1.75} />
+                    {totalUnread > 0 && (
+                        <span style={{
+                            position: "absolute",
+                            top: -2,
+                            right: -2,
+                            background: "var(--primary-color, #f43f5e)",
+                            color: "white",
+                            fontSize: 9,
+                            fontWeight: "bold",
+                            width: 14,
+                            height: 14,
+                            borderRadius: "50%",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            pointerEvents: "none",
+                            boxShadow: "0 0 0 2px var(--bg, #F6F5F1)"
+                        }}>
+                            {totalUnread}
+                        </span>
+                    )}
                 </button>
                 {showConversations && (
                     <div className="conv-panel">
@@ -264,7 +311,27 @@ export default function HeaderIcons({ session }) {
                                                     <span className="conv-item-name">{partnerName}</span>
                                                     <span className="conv-item-time">{timeLabel}</span>
                                                 </div>
-                                                <span className="conv-item-preview">{previewText}</span>
+                                                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                                                    <span className="conv-item-preview" style={{ fontWeight: conv.unread_count > 0 ? 600 : 400, color: conv.unread_count > 0 ? "var(--ink)" : "var(--muted)" }}>{previewText}</span>
+                                                    {conv.unread_count > 0 && (
+                                                        <span style={{
+                                                            background: "var(--primary-color, #f43f5e)",
+                                                            color: "white",
+                                                            fontSize: 10,
+                                                            fontWeight: "bold",
+                                                            minWidth: 18,
+                                                            height: 18,
+                                                            padding: "0 5px",
+                                                            borderRadius: 9,
+                                                            display: "flex",
+                                                            alignItems: "center",
+                                                            justifyContent: "center",
+                                                            marginLeft: 8
+                                                        }}>
+                                                            {conv.unread_count}
+                                                        </span>
+                                                    )}
+                                                </div>
                                             </div>
                                         </div>
                                     );

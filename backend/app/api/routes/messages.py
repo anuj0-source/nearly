@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Cookie, Depends, HTTPException
-from sqlalchemy import select
+from sqlalchemy import select, or_, desc, func
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 import uuid
@@ -68,6 +68,15 @@ async def get_conversations(
             .limit(1)
         )
 
+        unread_count = db.scalar(
+            select(func.count(Message.id))
+            .where(
+                (Message.conversation_id == conv.conversation_id) &
+                (Message.receiver_id == session_id) &
+                (Message.is_read == False)
+            )
+        )
+
         result.append({
             "conversation_id": conv.conversation_id,
             "user1_session_id": conv.user1_session_id,
@@ -79,12 +88,38 @@ async def get_conversations(
             "is_friend": partner in user.friends if partner else False,
             "last_message_text": last_message.message if last_message else None,
             "last_message_time": last_message.created_at if last_message else None,
+            "unread_count": unread_count or 0,
         })
 
     # Sort so the most recently active conversations appear at the top
     result.sort(key=lambda x: x["last_message_time"] or x["created_at"], reverse=True)
 
     return result
+
+@router.post("/read/{conversation_id}")
+async def mark_messages_as_read(
+    conversation_id: str,
+    session_id: str | None = Cookie(default=None),
+    db: Session = Depends(get_db)
+):
+    if not session_id:
+        raise HTTPException(status_code=401, detail="No session found")
+
+    messages = db.scalars(
+        select(Message)
+        .where(
+            (Message.conversation_id == conversation_id) &
+            (Message.receiver_id == session_id) &
+            (Message.is_read == False)
+        )
+    ).all()
+
+    for msg in messages:
+        msg.is_read = True
+
+    db.commit()
+
+    return {"status": "ok", "marked_count": len(messages)}
 
 @router.get("/partner-status/{partner_session_id}")
 async def get_partner_status(

@@ -241,6 +241,11 @@ function Chat() {
     const [conversationsLoading, setConversationsLoading] = useState(false);
     const [showConversations, setShowConversations] = useState(false);
     const [activeConv, setActiveConv] = useState(null);       // selected conversation object
+    const activeConvRef = useRef(null);
+
+    useEffect(() => {
+        activeConvRef.current = activeConv;
+    }, [activeConv]);
     const [historyMessages, setHistoryMessages] = useState([]); // loaded messages for history view
     const [historyLoading, setHistoryLoading] = useState(false);
     const [historyMessage, setHistoryMessage] = useState(""); // input for history composer
@@ -355,7 +360,7 @@ function Chat() {
                 id: String(m.id),
                 sender: m.sender_id === session?.session_id ? "me" : "them",
                 text: m.message,
-                createdAt: m.created_at,
+                        createdAt: m.created_at.endsWith("Z") ? m.created_at : m.created_at + "Z",
             }));
             setHistoryMessages(mapped);
             setHistoryLoading(false);
@@ -379,8 +384,8 @@ function Chat() {
         const partnerParam = searchParams.get("partner");
         if (!partnerParam) return;
 
-        // If activeConv is already this partner, do nothing
-        if (activeConv && (
+        // If activeConv is already this partner and we are not in setup state, do nothing
+        if (activeConv && chatState !== "setup" && (
             activeConv.user1_session_id === partnerParam ||
             activeConv.user2_session_id === partnerParam
         )) {
@@ -437,17 +442,27 @@ function Chat() {
                         id: String(m.id),
                         sender: m.sender_id === session?.session_id ? "me" : "them",
                         text: m.message,
-                        createdAt: m.created_at,
+                        createdAt: m.created_at.endsWith("Z") ? m.created_at : m.created_at + "Z",
                     }));
                     setHistoryMessages(mapped);
+
+                    // Mark conversation as read since we just opened it
+                    if (data.conversation_id) {
+                        fetch(`${BACKEND_URL}/api/messages/read/${data.conversation_id}`, {
+                            method: "POST",
+                            credentials: "include"
+                        }).catch(console.error);
+                    }
                 } else {
                     console.error("Direct conversation fetch failed", res.status);
                     setChatState("setup");
+                    setActiveConv(null);
                     setSearchParams({}, { replace: true });
                 }
             } catch (err) {
                 console.error("Failed to load direct conversation history:", err);
                 setChatState("setup");
+                setActiveConv(null);
                 setSearchParams({}, { replace: true });
             } finally {
                 setHistoryLoading(false);
@@ -583,7 +598,7 @@ function Chat() {
                     id: String(m.id),
                     sender: m.sender_id === currentSessionId ? "me" : "them",
                     text: m.message,
-                    createdAt: m.created_at,
+                    createdAt: m.created_at.endsWith("Z") ? m.created_at : m.created_at + "Z",
                 }));
                 setMessages(mapped);
             }
@@ -663,6 +678,14 @@ function Chat() {
                                 behavior: "smooth",
                             });
                         });
+                        
+                        // If this is the currently active conversation, mark as read
+                        if (activeConvRef.current?.conversation_id === incomingConvId) {
+                            fetch(`${BACKEND_URL}/api/messages/read/${incomingConvId}`, {
+                                method: "POST",
+                                credentials: "include"
+                            }).catch(console.error);
+                        }
                     } else {
                         setMessages((current) => [
                             ...current,
@@ -1191,6 +1214,7 @@ function Chat() {
         }
 
         setChatState("setup");
+        setActiveConv(null);
     }
 
 
@@ -1440,6 +1464,7 @@ function Chat() {
                             aria-label="Back"
                             onClick={() => {
                                 setChatState("setup");
+                                setActiveConv(null);
                                 setSearchParams({}, { replace: true });
                             }}
                             style={{ marginRight: 4 }}
