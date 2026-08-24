@@ -1,5 +1,8 @@
 from datetime import datetime
 from typing import List
+from sqlalchemy import Boolean
+from geoalchemy2 import Geography
+from geoalchemy2.elements import WKBElement
 
 from sqlalchemy import (
     String,
@@ -96,14 +99,10 @@ class AnonymousSession(Base):
         default="not-defined"
     )
 
-    longitude: Mapped[float | None] = mapped_column(
-        Float,
-        nullable=True
-    )
-
-    latitude: Mapped[float | None] = mapped_column(
-        Float,
-        nullable=True
+    location: Mapped[WKBElement] = mapped_column(
+        Geography(geometry_type="POINT", srid=4326),
+        nullable=True,
+        spatial_index=True
     )
 
     friends: Mapped[List["AnonymousSession"]] = relationship(
@@ -123,6 +122,11 @@ class AnonymousSession(Base):
     status: Mapped[str] = mapped_column(
         String(50),
         default="active"
+    )
+
+    is_nearby_enabled: Mapped[bool] = mapped_column(
+        Boolean,
+        default=False
     )
 
     created_at: Mapped[datetime] = mapped_column(

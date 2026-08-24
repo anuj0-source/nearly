@@ -79,8 +79,17 @@ async def get_requests(
             detail="user not found"
         )
     
+    requests_list = []
+    for r in user.friend_requests:
+        requests_list.append({
+            "id": r.id,
+            "session_id": r.session_id,
+            "name": r.name,
+            "avatar": r.avatar
+        })
+    
     return {
-        "requests":user.friend_requests
+        "requests": requests_list
     }
 
 @router.post("/accept/{friend_id}")

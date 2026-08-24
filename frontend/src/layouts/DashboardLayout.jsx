@@ -2,6 +2,7 @@ import { Outlet, useLocation } from "react-router-dom";
 import Sidebar from "../components/sidebar";
 import BottomNav from "../components/BottomNav";
 import BrandLogo from "../components/BrandLogo";
+import HeaderIcons from "../components/HeaderIcons";
 
 function DashboardLayout({ darkMode, onToggleTheme }) {
     const { pathname } = useLocation();
@@ -15,6 +16,9 @@ function DashboardLayout({ darkMode, onToggleTheme }) {
                     <header className="topbar">
                         <div className="topbar-left">
                             <BrandLogo className="dashboard-brand" />
+                        </div>
+                        <div className="topbar-right" style={{ display: 'flex', alignItems: 'center' }}>
+                            <HeaderIcons />
                         </div>
                     </header>
                 )}

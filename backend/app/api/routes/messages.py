@@ -1,8 +1,8 @@
 from fastapi import APIRouter, Cookie, Depends, HTTPException
-from sqlalchemy import select
+from sqlalchemy import select, or_, desc, func
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
-
+import uuid
 from models.user import AnonymousSession
 from models.message import Message
 from models.conversation import Conversation
@@ -47,9 +47,6 @@ async def get_conversations(
         .order_by(Conversation.created_at.desc())
     ).all()
 
-    # Enrich each conversation with the partner's real name, avatar, and live status.
-    # Use manager.connections (the live WebSocket registry) as the source of truth
-    # rather than the DB status field, which can be stale.
     from api.routes.chat import manager as ws_manager
     result = []
     for conv in conversations:
@@ -63,6 +60,23 @@ async def get_conversations(
             .where(AnonymousSession.session_id == partner_session_id)
         )
         is_online = partner_session_id in ws_manager.connections
+
+        last_message = db.scalar(
+            select(Message)
+            .where(Message.conversation_id == conv.conversation_id)
+            .order_by(Message.created_at.desc())
+            .limit(1)
+        )
+
+        unread_count = db.scalar(
+            select(func.count(Message.id))
+            .where(
+                (Message.conversation_id == conv.conversation_id) &
+                (Message.receiver_id == session_id) &
+                (Message.is_read == False)
+            )
+        )
+
         result.append({
             "conversation_id": conv.conversation_id,
             "user1_session_id": conv.user1_session_id,
@@ -72,9 +86,40 @@ async def get_conversations(
             "partner_avatar": partner.avatar if partner else None,
             "partner_status": "active" if is_online else "inactive",
             "is_friend": partner in user.friends if partner else False,
+            "last_message_text": last_message.message if last_message else None,
+            "last_message_time": last_message.created_at if last_message else None,
+            "unread_count": unread_count or 0,
         })
 
+    # Sort so the most recently active conversations appear at the top
+    result.sort(key=lambda x: x["last_message_time"] or x["created_at"], reverse=True)
+
     return result
+
+@router.post("/read/{conversation_id}")
+async def mark_messages_as_read(
+    conversation_id: str,
+    session_id: str | None = Cookie(default=None),
+    db: Session = Depends(get_db)
+):
+    if not session_id:
+        raise HTTPException(status_code=401, detail="No session found")
+
+    messages = db.scalars(
+        select(Message)
+        .where(
+            (Message.conversation_id == conversation_id) &
+            (Message.receiver_id == session_id) &
+            (Message.is_read == False)
+        )
+    ).all()
+
+    for msg in messages:
+        msg.is_read = True
+
+    db.commit()
+
+    return {"status": "ok", "marked_count": len(messages)}
 
 @router.get("/partner-status/{partner_session_id}")
 async def get_partner_status(
@@ -143,8 +188,8 @@ async def get_friend_messages(
         select(AnonymousSession)
         .where(AnonymousSession.session_id == partner_session_id)
     )
-    if not friend:
-        raise HTTPException(status_code=404, detail="Friend not found")
+    # if not friend:
+    #     raise HTTPException(status_code=404, detail="Friend not found")
 
     # SQLAlchemy requires & / | for column-level boolean logic, not Python and/or
     conversation = db.scalar(
@@ -162,7 +207,14 @@ async def get_friend_messages(
     )
 
     if not conversation:
-        raise HTTPException(status_code=404, detail="Conversation not found")
+        conversation=Conversation(
+            conversation_id=str(uuid.uuid4()),
+            user1_session_id=session_id,
+            user2_session_id=partner_session_id
+        )
+        db.add(conversation)
+        db.commit()
+        db.refresh(conversation)
 
     messages = db.scalars(
         select(Message)
@@ -231,6 +283,9 @@ async def send_message(
         "type": "chat_message",
         "text": body.message,
         "conversation_id": body.conversation_id,
+        "sender_id": session_id,
+        "sender_name": user.name,
+        "sender_avatar": user.avatar,
     }
     await manager.send_json(partner_id, payload)
 
