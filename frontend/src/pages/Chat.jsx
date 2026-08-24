@@ -74,7 +74,7 @@ const ReceiveRequestIcon = ({ size = 22, strokeWidth = 1.75, color = "currentCol
 // BACKEND URL
 // =================================================
 
-const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
+const BACKEND_URL = import.meta.env.VITE_BACKEND_URL ?? "http://localhost:8000";
 
 
 // =================================================

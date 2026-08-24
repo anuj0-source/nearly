@@ -3,7 +3,7 @@ import { MessageCircle, Bell, BadgeCheck, Check, X } from "lucide-react";
 import { useWebSocket } from "../contexts/WebSocketContext";
 import { useNavigate } from "react-router-dom";
 
-const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
+const BACKEND_URL = import.meta.env.VITE_BACKEND_URL ?? "http://localhost:8000";
 
 const ReceiveRequestIcon = ({ size = 22, strokeWidth = 1.75, color = "currentColor" }) => (
     <svg

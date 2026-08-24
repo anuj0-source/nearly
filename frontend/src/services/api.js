@@ -1,5 +1,7 @@
 import { anonymousPeople, previousMatches, starterMessages } from "../data/mockData";
 
+const BACKEND_URL = import.meta.env.VITE_BACKEND_URL ?? "http://localhost:8000";
+
 // These mock functions mirror the future FastAPI boundary.
 export function createAnonymousSession() {
     return Promise.resolve({ id: "mock-session", status: "anonymous" });
@@ -22,7 +24,7 @@ export function getMatches() {
 }
 
 export async function getNearbyPeople(radius = 5000) {
-    const res = await fetch(`/api/nearby/peoples?radius=${radius}`, {
+    const res = await fetch(`${BACKEND_URL}/api/nearby/peoples?radius=${radius}`, {
         credentials: "include",
     });
 
@@ -36,7 +38,7 @@ export async function getNearbyPeople(radius = 5000) {
 }
 
 export async function sendFriendRequest(friendId) {
-    const res = await fetch(`/api/friend/request/${friendId}`, {
+    const res = await fetch(`${BACKEND_URL}/api/friend/request/${friendId}`, {
         method: "POST",
         credentials: "include",
     });
@@ -48,7 +50,7 @@ export async function sendFriendRequest(friendId) {
 }
 
 export async function getConversation(partnerId) {
-    const res = await fetch(`/api/messages/conversation/${partnerId}`, {
+    const res = await fetch(`${BACKEND_URL}/api/messages/conversation/${partnerId}`, {
         credentials: "include",
     });
     if (!res.ok) {
@@ -77,7 +79,7 @@ export function updateProfile(profile) {
 // POST /api/nearby/location — sends the device's current coordinates.
 // Fires on first fix, then only when the user moves ≥500 m OR 2 minutes pass.
 export async function sendLocation(latitude, longitude) {
-    const res = await fetch("/api/nearby/location", {
+    const res = await fetch(`${BACKEND_URL}/api/nearby/location`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include", // forward session cookie
@@ -94,7 +96,7 @@ export async function sendLocation(latitude, longitude) {
 
 // POST /api/nearby/enable-disable — toggles the user's nearby visibility.
 export async function toggleNearby() {
-    const res = await fetch("/api/nearby/enable-disable", {
+    const res = await fetch(`${BACKEND_URL}/api/nearby/enable-disable`, {
         method: "POST",
         credentials: "include",
     });
@@ -109,7 +111,7 @@ export async function toggleNearby() {
 
 // GET /api/nearby/status — returns { is_nearby_enabled } for the current session.
 export async function getNearbyStatus() {
-    const res = await fetch("/api/nearby/status", {
+    const res = await fetch(`${BACKEND_URL}/api/nearby/status`, {
         credentials: "include",
     });
 

@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { MessageCircle, UserMinus, Loader } from "lucide-react";
 import AnonymousAvatar from "../components/AnonymousAvatar";
 
-const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
+const BACKEND_URL = import.meta.env.VITE_BACKEND_URL ?? "http://localhost:8000";
 
 function Friends() {
     const navigate = useNavigate();
