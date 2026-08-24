@@ -5,9 +5,9 @@ import AnonymousAvatar from "../components/AnonymousAvatar";
 import { sendLocation, toggleNearby, getNearbyStatus, getNearbyPeople, sendFriendRequest, getConversation } from "../services/api";
 
 const STATUS_LABEL = {
-    online: "Online",
+    active: "Active",
     away: "Away",
-    offline: "Offline",
+    inactive: "Inactive",
 };
 
 // ── Location-tracking constants ────────────────────────────────────────────────
@@ -26,6 +26,17 @@ function getDistance(lat1, lon1, lat2, lon2) {
 }
 // ────────────────────────────────────────────────────────────────────────────────
 
+// ── Radius presets (index-based for easy slider control) ──────────────────────
+const RADIUS_PRESETS = [100, 250, 500, 1000, 2000, 5000, 10000, 25000, 50000, 100000];
+const DEFAULT_RADIUS_IDX = 5; // 5 km
+
+function formatRadius(meters) {
+    if (meters < 1000) return { value: meters, unit: 'm' };
+    const km = meters / 1000;
+    return { value: km % 1 === 0 ? `${km}` : km.toFixed(1), unit: 'km' };
+}
+// ────────────────────────────────────────────────────────────────────────────────
+
 function Nearby() {
     const navigate = useNavigate();
     const [nearbyEnabled, setNearbyEnabled] = useState(false);
@@ -33,6 +44,13 @@ function Nearby() {
     const [loading, setLoading] = useState(true); // true until DB status is fetched
     const [nearbyPeoples, setNearbyPeoples] = useState([]);
     const [loadingPeoples, setLoadingPeoples] = useState(false);
+    const [radius, setRadius] = useState(RADIUS_PRESETS[DEFAULT_RADIUS_IDX]);
+    const [radiusIdx, setRadiusIdx] = useState(DEFAULT_RADIUS_IDX);
+    const radiusRef = useRef(radius);
+
+    useEffect(() => {
+        radiusRef.current = radius;
+    }, [radius]);
     
     // For disabling buttons while actions are in progress
     const [actioningId, setActioningId] = useState(null);
@@ -58,7 +76,7 @@ function Nearby() {
         const fetchPeoples = async () => {
             if (nearbyPeoples.length === 0) setLoadingPeoples(true);
             try {
-                const peoples = await getNearbyPeople();
+                const peoples = await getNearbyPeople(radiusRef.current);
                 setNearbyPeoples(peoples);
             } catch (err) {
                 console.error("Failed to fetch nearby peoples:", err);
@@ -142,6 +160,24 @@ function Nearby() {
             }
         };
     }, [nearbyEnabled]);
+
+    // ── Fetch on radius change ───────────────────────────────────────────────
+    useEffect(() => {
+        if (!nearbyEnabled) return;
+        
+        const handler = setTimeout(async () => {
+            setLoadingPeoples(true);
+            try {
+                const peoples = await getNearbyPeople(radius);
+                setNearbyPeoples(peoples);
+            } catch (err) {
+                console.error("Failed to fetch nearby peoples on radius change:", err);
+            } finally {
+                setLoadingPeoples(false);
+            }
+        }, 500); // debounce
+        return () => clearTimeout(handler);
+    }, [radius, nearbyEnabled]);
 
     // ── Toggle handler ────────────────────────────────────────────────────────
     async function handleToggle() {
@@ -231,9 +267,34 @@ function Nearby() {
 
                 <div className="nearby-header-right">
                     {nearbyEnabled && (
-                        <aside className="nearby-count">
-                            {nearbyPeoples.length} <span className="accent">people nearby</span>
-                        </aside>
+                        <div className="nearby-radius-setter">
+                            <div className="nearby-radius-body">
+                                <span className="nearby-radius-label">Radius</span>
+                                <span className="nearby-radius-value">
+                                    {formatRadius(radius).value}
+                                    <span className="nearby-radius-unit">{formatRadius(radius).unit}</span>
+                                </span>
+                            </div>
+                            <div className="nearby-radius-track-container">
+                                <input
+                                    id="radius-slider"
+                                    className="nearby-radius-input"
+                                    type="range"
+                                    min="0"
+                                    max={RADIUS_PRESETS.length - 1}
+                                    step="1"
+                                    value={radiusIdx}
+                                    onChange={(e) => {
+                                        const idx = Number(e.target.value);
+                                        setRadiusIdx(idx);
+                                        setRadius(RADIUS_PRESETS[idx]);
+                                    }}
+                                    style={{
+                                        background: `linear-gradient(to right, var(--accent) ${(radiusIdx / (RADIUS_PRESETS.length - 1)) * 100}%, var(--line) ${(radiusIdx / (RADIUS_PRESETS.length - 1)) * 100}%)`
+                                    }}
+                                />
+                            </div>
+                        </div>
                     )}
 
                     {/* ── Location toggle ── */}
@@ -297,6 +358,13 @@ function Nearby() {
                         })}
                     </aside>
 
+                    <div style={{ textAlign: 'center', marginBottom: '32px' }}>
+                        <div className="nearby-count-pill">
+                            <span className="nearby-count-number">{nearbyPeoples.length}</span>
+                            <span className="nearby-count-text">people nearby</span>
+                        </div>
+                    </div>
+
                     <div className="nearby-grid">
                         {(loadingPeoples && nearbyPeoples.length === 0) ? (
                             Array.from({ length: 4 }).map((_, i) => (
@@ -317,11 +385,11 @@ function Nearby() {
                                 </article>
                             ))
                         ) : nearbyPeoples.map((person, i) => (
-                            <article className="nearby-card" key={person.session_id} style={{ "--i": i }}>
+                            <article className="nearby-card" key={person.session_id} data-status={person.status} style={{ "--i": i }}>
                                 <header className="nearby-head">
                                     <div className="nearby-identity">
                                         <div className="nearby-avatar">
-                                            <AnonymousAvatar type={person.avatar} size="lg" online={person.status === "online"} />
+                                            <AnonymousAvatar type={person.avatar} size="lg" online={person.status === "active"} />
                                         </div>
                                         <div className="nearby-meta">
                                             <h3>{person.name}</h3>

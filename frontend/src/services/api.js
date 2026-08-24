@@ -21,8 +21,8 @@ export function getMatches() {
     return Promise.resolve(previousMatches);
 }
 
-export async function getNearbyPeople() {
-    const res = await fetch("/api/nearby/peoples", {
+export async function getNearbyPeople(radius = 5000) {
+    const res = await fetch(`/api/nearby/peoples?radius=${radius}`, {
         credentials: "include",
     });
 
