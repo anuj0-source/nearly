@@ -30,6 +30,9 @@ export async function getNearbyPeople(radius = 5000) {
 
     if (!res.ok) {
         const err = await res.json().catch(() => ({}));
+        if (res.status === 400 && err.detail === "nearby is disabled or location unknown") {
+            return [];
+        }
         throw new Error(err.detail ?? `Failed to fetch nearby peoples: ${res.status}`);
     }
 
