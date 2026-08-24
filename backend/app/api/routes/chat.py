@@ -313,6 +313,14 @@ async def chat_websocket(
                         db.add(db_msg)
                         db.commit()
 
+                # Add sender details to payload for frontend notifications
+                payload["sender_id"] = resolved_session_id
+                if user1:
+                    payload["sender_name"] = user1.name
+                    payload["sender_avatar"] = user1.avatar
+                if conv_id:
+                    payload["conversation_id"] = conv_id
+
             await manager.send_json(
                     matched_user,
                     payload

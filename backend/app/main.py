@@ -7,6 +7,7 @@ from database import engine,Base
 from api.routes.chat import router as chat_router
 from api.routes.friend import router as friend_router
 from api.routes.messages import router as messages_router
+from sqlalchemy import text
 
 app=FastAPI(
     title="Nearly API",
@@ -14,11 +15,15 @@ app=FastAPI(
     version="1.0.0"
 )
 
+with engine.connect() as conn:
+    conn.execute(text("CREATE EXTENSION IF NOT EXISTS postgis;"))
+    conn.commit()
+
 Base.metadata.create_all(bind=engine)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["https://nearly-nine.vercel.app"],
+    allow_origins=["http://localhost:5173","https://nearly-nine.vercel.app"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

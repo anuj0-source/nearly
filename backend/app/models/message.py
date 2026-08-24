@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import String, DateTime, Float, Text
+from sqlalchemy import String, DateTime, Float, Text, Boolean
 from sqlalchemy.orm import Mapped, mapped_column
 
 from database import Base
@@ -36,4 +36,9 @@ class Message(Base):
     created_at : Mapped[datetime] = mapped_column(
         DateTime,
         default=datetime.utcnow
+    )
+
+    is_read : Mapped[bool] = mapped_column(
+        Boolean,
+        default=False
     )

@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import AnonymousAvatar from "../components/AnonymousAvatar";
 import GhostMark from "../components/GhostMark";
+import HeaderIcons from "../components/HeaderIcons";
 import { anonymousPeople } from "../data/mockData";
 import { useNavigate, useLocation, useSearchParams } from "react-router-dom";
 
@@ -234,10 +235,17 @@ function Chat() {
 
     const [friendRequests, setFriendRequests] =
         useState([]);
+    const [friendRequestsLoading, setFriendRequestsLoading] = useState(false);
 
     const [conversations, setConversations] = useState([]);
+    const [conversationsLoading, setConversationsLoading] = useState(false);
     const [showConversations, setShowConversations] = useState(false);
     const [activeConv, setActiveConv] = useState(null);       // selected conversation object
+    const activeConvRef = useRef(null);
+
+    useEffect(() => {
+        activeConvRef.current = activeConv;
+    }, [activeConv]);
     const [historyMessages, setHistoryMessages] = useState([]); // loaded messages for history view
     const [historyLoading, setHistoryLoading] = useState(false);
     const [historyMessage, setHistoryMessage] = useState(""); // input for history composer
@@ -352,7 +360,7 @@ function Chat() {
                 id: String(m.id),
                 sender: m.sender_id === session?.session_id ? "me" : "them",
                 text: m.message,
-                createdAt: m.created_at,
+                        createdAt: m.created_at.endsWith("Z") ? m.created_at : m.created_at + "Z",
             }));
             setHistoryMessages(mapped);
             setHistoryLoading(false);
@@ -376,8 +384,8 @@ function Chat() {
         const partnerParam = searchParams.get("partner");
         if (!partnerParam) return;
 
-        // If activeConv is already this partner, do nothing
-        if (activeConv && (
+        // If activeConv is already this partner and we are not in setup state, do nothing
+        if (activeConv && chatState !== "setup" && (
             activeConv.user1_session_id === partnerParam ||
             activeConv.user2_session_id === partnerParam
         )) {
@@ -434,17 +442,31 @@ function Chat() {
                         id: String(m.id),
                         sender: m.sender_id === session?.session_id ? "me" : "them",
                         text: m.message,
-                        createdAt: m.created_at,
+                        createdAt: m.created_at.endsWith("Z") ? m.created_at : m.created_at + "Z",
                     }));
                     setHistoryMessages(mapped);
+
+                    // Mark conversation as read since we just opened it
+                    if (data.conversation_id) {
+                        fetch(`${BACKEND_URL}/api/messages/read/${data.conversation_id}`, {
+                            method: "POST",
+                            credentials: "include"
+                        }).catch(console.error);
+                    }
                 } else {
                     console.error("Direct conversation fetch failed", res.status);
                     setChatState("setup");
+                    setActiveConv(null);
+                    conversationIdRef.current = null;
                     setSearchParams({}, { replace: true });
                 }
             } catch (err) {
                 console.error("Failed to load direct conversation history:", err);
                 setChatState("setup");
+                setActiveConv(null);
+                conversationIdRef.current = null;
+                window.activeLiveMatchSessionId = null;
+                startMatching();
                 setSearchParams({}, { replace: true });
             } finally {
                 setHistoryLoading(false);
@@ -580,7 +602,7 @@ function Chat() {
                     id: String(m.id),
                     sender: m.sender_id === currentSessionId ? "me" : "them",
                     text: m.message,
-                    createdAt: m.created_at,
+                    createdAt: m.created_at.endsWith("Z") ? m.created_at : m.created_at + "Z",
                 }));
                 setMessages(mapped);
             }
@@ -612,6 +634,8 @@ function Chat() {
 
                     const convId = payload.conversation_id;
                     conversationIdRef.current = convId;
+                    
+                    window.activeLiveMatchSessionId = payload.match?.session_id;
 
                     // Fire-and-forget: load messages sent while we were offline.
                     if (convId) {
@@ -642,9 +666,8 @@ function Chat() {
                 if (payload.type === "chat_message") {
                     const incomingConvId = payload.conversation_id;
 
-                    // If we are currently viewing a history conversation that matches,
-                    // append the message there instead of (or as well as) the live chat.
-                    if (incomingConvId) {
+                    // 1. Is it for the currently active HISTORY conversation?
+                    if (incomingConvId && activeConvRef.current?.conversation_id === incomingConvId) {
                         setHistoryMessages(prev => [
                             ...prev,
                             createChatMessage({
@@ -660,7 +683,18 @@ function Chat() {
                                 behavior: "smooth",
                             });
                         });
-                    } else {
+                        
+                        // Mark as read
+                        fetch(`${BACKEND_URL}/api/messages/read/${incomingConvId}`, {
+                            method: "POST",
+                            credentials: "include"
+                        }).then(() => {
+                            window.dispatchEvent(new CustomEvent("force_conversations_refresh"));
+                        }).catch(console.error);
+                    } 
+                    // 2. Is it for the currently active LIVE MATCH conversation?
+                    // We check if it matches conversationIdRef.current, OR if incomingConvId is missing (fallback)
+                    else if (!incomingConvId || conversationIdRef.current === incomingConvId) {
                         setMessages((current) => [
                             ...current,
                             createChatMessage({
@@ -669,6 +703,16 @@ function Chat() {
                                 text: payload.text,
                             }),
                         ]);
+                        
+                        // Mark as read
+                        if (incomingConvId) {
+                            fetch(`${BACKEND_URL}/api/messages/read/${incomingConvId}`, {
+                                method: "POST",
+                                credentials: "include"
+                            }).then(() => {
+                                window.dispatchEvent(new CustomEvent("force_conversations_refresh"));
+                            }).catch(console.error);
+                        }
                     }
                     return;
                 }
@@ -987,8 +1031,10 @@ function Chat() {
             setShowRequests(false);
             return;
         }
-        await fetchFriendRequests();
         setShowRequests(true);
+        setFriendRequestsLoading(true);
+        await fetchFriendRequests();
+        setFriendRequestsLoading(false);
     }
 
     async function fetchConversations() {
@@ -1010,8 +1056,10 @@ function Chat() {
             setShowConversations(false);
             return;
         }
-        await fetchConversations();
         setShowConversations(true);
+        setConversationsLoading(true);
+        await fetchConversations();
+        setConversationsLoading(false);
     }
 
     async function openConversation(conv) {
@@ -1054,7 +1102,7 @@ function Chat() {
                     id: String(m.id),
                     sender: m.sender_id === session?.session_id ? "me" : "them",
                     text: m.message,
-                    createdAt: m.created_at,
+                    createdAt: m.created_at.endsWith("Z") ? m.created_at : m.created_at + "Z",
                 }));
                 setHistoryMessages(mapped);
             }
@@ -1184,6 +1232,9 @@ function Chat() {
         }
 
         setChatState("setup");
+        setActiveConv(null);
+        conversationIdRef.current = null;
+        window.activeLiveMatchSessionId = null;
     }
 
 
@@ -1301,189 +1352,7 @@ function Chat() {
         return (
             <section className="chat-setup">
                 <div style={{ position: "absolute", top: 24, right: 24, display: "flex", gap: 12, zIndex: 10 }}>
-                    <div ref={conversationsDropdownRef} style={{ position: "relative" }}>
-                        <button className="ix-btn" type="button" aria-label="Messages" {...(!showConversations ? { "data-tooltip": "Messages" } : {})} onClick={toggleConversations}>
-                            <MessageCircle size={22} strokeWidth={1.75} />
-                        </button>
-                        {showConversations && (
-                            <div className="conv-panel">
-                                {/* ── Header ── */}
-                                <div className="conv-header">
-                                    <div className="conv-header-left">
-                                        <div className="conv-header-icon">
-                                            <MessageCircle size={15} strokeWidth={2.2} />
-                                        </div>
-                                        <span className="conv-header-title">Messages</span>
-                                    </div>
-                                    {conversations.length > 0 && (
-                                        <span className="conv-header-count">{conversations.length}</span>
-                                    )}
-                                </div>
-
-                                {/* ── List ── */}
-                                <div className="conv-list">
-                                    {conversations.length === 0 ? (
-                                        <div className="conv-empty">
-                                            <div className="conv-empty-icon">
-                                                <MessageCircle size={28} strokeWidth={1.4} />
-                                            </div>
-                                            <p className="conv-empty-title">No messages yet</p>
-                                            <p className="conv-empty-sub">Start a chat to see your conversations here</p>
-                                        </div>
-                                    ) : (
-                                        conversations.map((conv, i) => {
-                                            const otherId = conv.user1_session_id === session?.session_id ? conv.user2_session_id : conv.user1_session_id;
-                                            const partnerName = conv.partner_name || `Anon ${otherId?.substring(0, 6)}`;
-                                            const partnerAvatar = conv.partner_avatar;
-                                            const initials = partnerName.split(" ").map(w => w[0]).join("").substring(0, 2).toUpperCase();
-                                            const createdDate = new Date(conv.created_at);
-                                            const now = new Date();
-                                            const diffMs = now - createdDate;
-                                            const diffMins = Math.floor(diffMs / 60000);
-                                            const diffHrs = Math.floor(diffMins / 60);
-                                            const diffDays = Math.floor(diffHrs / 24);
-                                            let timeLabel;
-                                            if (diffMins < 1) timeLabel = "just now";
-                                            else if (diffMins < 60) timeLabel = `${diffMins}m ago`;
-                                            else if (diffHrs < 24) timeLabel = `${diffHrs}h ago`;
-                                            else if (diffDays < 7) timeLabel = `${diffDays}d ago`;
-                                            else timeLabel = createdDate.toLocaleDateString(undefined, { month: "short", day: "numeric" });
-
-                                            return (
-                                                <div key={i} className="conv-item" onClick={() => openConversation(conv)} role="button" tabIndex={0} onKeyDown={e => e.key === "Enter" && openConversation(conv)}>
-                                                    <div className="conv-avatar" data-seed={i % 6}>
-                                                        {partnerAvatar ? (
-                                                            <img
-                                                                src={partnerAvatar}
-                                                                alt={partnerName}
-                                                                className="conv-avatar-img"
-                                                                onError={e => { e.currentTarget.style.display = "none"; e.currentTarget.nextSibling.style.display = "flex"; }}
-                                                            />
-                                                        ) : null}
-                                                        <span className="conv-avatar-fallback" style={{ display: partnerAvatar ? "none" : "flex" }}>
-                                                            {initials}
-                                                        </span>
-                                                    </div>
-                                                    <div className="conv-item-body">
-                                                        <div className="conv-item-top">
-                                                            <span className="conv-item-name">{partnerName}</span>
-                                                            <span className="conv-item-time">{timeLabel}</span>
-                                                        </div>
-                                                        <span className="conv-item-preview">Tap to open conversation</span>
-                                                    </div>
-
-                                                </div>
-                                            );
-                                        })
-                                    )}
-                                </div>
-                            </div>
-                        )}
-                    </div>
-                    <div ref={requestsDropdownRef} style={{ position: "relative" }}>
-                        <button className="ix-btn" style={{ position: "relative" }} type="button" aria-label="Friend requests" {...(!showRequests ? { "data-tooltip": "Friend requests" } : {}) } onClick={toggleFriendRequests}>
-                            <ReceiveRequestIcon size={22} strokeWidth={1.75} />
-                            {friendRequests.length > 0 && (
-                                <span style={{
-                                    position: "absolute",
-                                    top: -2,
-                                    right: -2,
-                                    background: "var(--primary-color, #f43f5e)",
-                                    color: "white",
-                                    fontSize: 9,
-                                    fontWeight: "bold",
-                                    width: 14,
-                                    height: 14,
-                                    borderRadius: "50%",
-                                    display: "flex",
-                                    alignItems: "center",
-                                    justifyContent: "center",
-                                    pointerEvents: "none",
-                                    boxShadow: "0 0 0 2px var(--bg, #F6F5F1)"
-                                }}>
-                                    {friendRequests.length}
-                                </span>
-                            )}
-                        </button>
-                        {showRequests && (
-                            <div className="conv-panel">
-
-                                {/* ── Header ── */}
-                                <div className="conv-header">
-                                    <div className="conv-header-left">
-                                        <div className="conv-header-icon">
-                                            <ReceiveRequestIcon size={15} strokeWidth={2.2} color="#fff" />
-                                        </div>
-                                        <span className="conv-header-title">Friend Requests</span>
-                                    </div>
-                                    {friendRequests.length > 0 && (
-                                        <span className="conv-header-count">{friendRequests.length}</span>
-                                    )}
-                                </div>
-
-                                {/* ── List ── */}
-                                <div className="conv-list">
-                                    {friendRequests.length === 0 ? (
-                                        <div className="conv-empty">
-                                            <div className="conv-empty-icon">
-                                                <BadgeCheck size={28} strokeWidth={1.4} />
-                                            </div>
-                                            <p className="conv-empty-title">All caught up!</p>
-                                            <p className="conv-empty-sub">No pending friend requests right now</p>
-                                        </div>
-                                    ) : (
-                                        friendRequests.map((req, i) => (
-                                            <div key={i} className="conv-item freq-item">
-                                                <div className="conv-avatar" data-seed={i % 6}>
-                                                    {req.avatar ? (
-                                                        <img
-                                                            src={req.avatar}
-                                                            alt={req.name}
-                                                            className="conv-avatar-img"
-                                                            onError={e => { e.currentTarget.style.display = "none"; e.currentTarget.nextSibling.style.display = "flex"; }}
-                                                        />
-                                                    ) : null}
-                                                    <span className="conv-avatar-fallback" style={{ display: req.avatar ? "none" : "flex" }}>
-                                                        {(req.name || "?").split(" ").map(w => w[0]).join("").substring(0, 2).toUpperCase()}
-                                                    </span>
-                                                </div>
-
-                                                <div className="conv-item-body">
-                                                    <div className="conv-item-top">
-                                                        <span className="conv-item-name">{req.name || "Anonymous"}</span>
-                                                    </div>
-                                                    <span className="conv-item-preview">Wants to be your friend</span>
-                                                </div>
-
-                                                <div className="freq-actions">
-                                                    <button
-                                                        className="freq-btn freq-accept"
-                                                        aria-label="Accept"
-                                                        title="Accept"
-                                                        onClick={() => acceptFriendRequest(req.session_id)}
-                                                    >
-                                                        <Check size={14} strokeWidth={2.5} />
-                                                    </button>
-                                                    <button
-                                                        className="freq-btn freq-reject"
-                                                        aria-label="Reject"
-                                                        title="Reject"
-                                                        onClick={() => rejectFriendRequest(req.session_id)}
-                                                    >
-                                                        <X size={14} strokeWidth={2.5} />
-                                                    </button>
-                                                </div>
-                                            </div>
-                                        ))
-                                    )}
-                                </div>
-
-                            </div>
-                        )}
-                    </div>
-                    <button className="ix-btn" type="button" aria-label="Notifications" data-tooltip="Notifications" onClick={() => {}}>
-                        <Bell size={22} strokeWidth={1.75} />
-                    </button>
+                    <HeaderIcons session={session} />
                 </div>
 
                 <div
@@ -1615,6 +1484,7 @@ function Chat() {
                             aria-label="Back"
                             onClick={() => {
                                 setChatState("setup");
+                                setActiveConv(null);
                                 setSearchParams({}, { replace: true });
                             }}
                             style={{ marginRight: 4 }}
