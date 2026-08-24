@@ -9,6 +9,7 @@ import Friends from "./pages/Friends";
 import Nearby from "./pages/Nearby";
 import Profile from "./pages/Profile";
 import DashboardLayout from "./layouts/DashboardLayout";
+import GlobalNotifications from "./components/GlobalNotifications";
 
 function App() {
     const [darkMode, setDarkMode] = useState(() => localStorage.getItem("nearly-theme") === "light" ? false : true);
@@ -21,6 +22,7 @@ function App() {
         <div className={darkMode ? "theme-dark" : "theme-light"}>
             <WebSocketProvider>
                 <BrowserRouter>
+                    <GlobalNotifications />
                     <Routes>
                         <Route path="/" element={<Home darkMode={darkMode} onToggleTheme={toggleTheme} />} />
                         <Route path="/login" element={<Login darkMode={darkMode} onToggleTheme={toggleTheme} />} />

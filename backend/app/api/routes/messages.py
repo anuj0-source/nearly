@@ -235,6 +235,9 @@ async def send_message(
         "type": "chat_message",
         "text": body.message,
         "conversation_id": body.conversation_id,
+        "sender_id": session_id,
+        "sender_name": user.name,
+        "sender_avatar": user.avatar,
     }
     await manager.send_json(partner_id, payload)
 
