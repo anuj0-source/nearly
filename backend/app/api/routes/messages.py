@@ -135,7 +135,6 @@ async def get_partner_status(
     return {"status": "active" if is_online else "inactive"}
 
 @router.get("/messages/{conversation_id}")
-
 async def get_messages(
     conversation_id : str,
     session_id : str | None = Cookie(default=None),
@@ -161,7 +160,8 @@ async def get_messages(
     messages = db.scalars(
         select(Message)
         .where(
-            Message.conversation_id == conversation_id
+            (Message.conversation_id == conversation_id) & 
+            ((Message.sender_id == session_id) | (Message.receiver_id == session_id))
         )
         .order_by(Message.created_at.asc())
     ).all()
@@ -169,7 +169,7 @@ async def get_messages(
     return messages
 
 @router.get("/conversation/{partner_session_id}")
-async def get_friend_messages(
+async def get_partner_conversation_messages(
     partner_session_id: str,
     session_id: str | None = Cookie(default=None),
     db: Session = Depends(get_db)
@@ -188,10 +188,7 @@ async def get_friend_messages(
         select(AnonymousSession)
         .where(AnonymousSession.session_id == partner_session_id)
     )
-    # if not friend:
-    #     raise HTTPException(status_code=404, detail="Friend not found")
 
-    # SQLAlchemy requires & / | for column-level boolean logic, not Python and/or
     conversation = db.scalar(
         select(Conversation)
         .where(
@@ -224,9 +221,9 @@ async def get_friend_messages(
 
     return {
         "conversation_id": conversation.conversation_id,
-        "partner_name": friend.name,
-        "partner_avatar": friend.avatar,
-        "is_friend": friend in user.friends,
+        "partner_name": friend.name if friend else "Unknown",
+        "partner_avatar": friend.avatar if friend else None,
+        "is_friend": friend in user.friends if friend else False,
         "messages": messages,
     }
 
