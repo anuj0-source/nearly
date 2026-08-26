@@ -104,6 +104,17 @@ function createChatMessage({ idPrefix, sender, text }) {
 
 
 // =================================================
+// EMOJI ONLY CHECK
+// =================================================
+
+const isEmojiOnly = (text) => {
+    if (!text) return false;
+    const stripped = text.replace(/\s/g, '');
+    if (!stripped) return false;
+    return /^(\p{Emoji_Presentation}|\p{Extended_Pictographic}|\p{Emoji_Modifier}|\p{Emoji_Component}|\u200D)+$/u.test(stripped);
+};
+
+// =================================================
 // SCROLL MESSAGES
 // =================================================
 
@@ -1576,7 +1587,7 @@ function Chat() {
                                 </div>
                             )}
 
-                            <div className="bubble">
+                            <div className={`bubble ${isEmojiOnly(item.text) ? 'emoji-only' : ''}`}>
                                 {item.text}
                                 <small>
                                     <time dateTime={item.createdAt}>
@@ -1953,7 +1964,7 @@ function Chat() {
                             )}
 
 
-                            <div className="bubble">
+                            <div className={`bubble ${isEmojiOnly(item.text) ? 'emoji-only' : ''}`}>
 
                                 {item.text}
 

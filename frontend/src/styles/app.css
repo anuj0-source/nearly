@@ -2079,6 +2079,24 @@ a { color: inherit; text-decoration: none; }
 }
 .theme-dark .row.sent .bubble { color: #FFFFFF; }
 
+.bubble.emoji-only {
+    background: transparent;
+    border: none;
+    box-shadow: none;
+    font-size: 44px;
+    padding: 0;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    line-height: 1.2;
+}
+.row.sent .bubble.emoji-only {
+    background: transparent;
+    border: none;
+    box-shadow: none;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+}
+
 .bubble small {
     display: block;
     margin-top: 4px;
@@ -2092,6 +2110,28 @@ a { color: inherit; text-decoration: none; }
 .row.sent .bubble small { color: rgba(255,255,255,0.85); opacity: 1; }
 .theme-dark .row.sent .bubble small { color: rgba(255,255,255,0.78); }
 
+.bubble.emoji-only small {
+    display: inline-block;
+    margin-top: 2px;
+    font-size: 10px;
+    color: var(--muted);
+    background: color-mix(in srgb, var(--paper) 60%, transparent);
+    padding: 2px 6px;
+    border-radius: 8px;
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+    box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+}
+.theme-dark .bubble.emoji-only small {
+    background: color-mix(in srgb, var(--surface) 60%, transparent);
+    color: var(--faint);
+}
+.row.sent .bubble.emoji-only small {
+    color: var(--muted); 
+}
+.theme-dark .row.sent .bubble.emoji-only small {
+    color: var(--faint);
+}
 .typing {
     display: inline-flex;
     gap: 3px;
