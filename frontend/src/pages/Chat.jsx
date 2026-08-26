@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useWebSocket } from "../contexts/WebSocketContext";
 import {
     ArrowRight,
@@ -12,6 +13,12 @@ import {
     X,
     MessageCircle,
     BadgeCheck,
+    Edit,
+    Edit2,
+    Trash,
+    Reply,
+    ChevronDown,
+    CornerUpRight
 } from "lucide-react";
 import AnonymousAvatar from "../components/AnonymousAvatar";
 import GhostMark from "../components/GhostMark";
@@ -38,6 +45,36 @@ const playMatchSound = () => {
         gain.gain.exponentialRampToValueAtTime(0.01, now + 0.3);
         osc.start(now);
         osc.stop(now + 0.3);
+    } catch (e) {
+        console.error("Audio playback failed", e);
+    }
+};
+
+const playDeleteSound = () => {
+    try {
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        if (!AudioContext) return;
+        const ctx = new AudioContext();
+        if (ctx.state === 'suspended') ctx.resume();
+
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        
+        osc.type = 'sine';
+        const now = ctx.currentTime;
+        
+        osc.frequency.setValueAtTime(600, now);
+        osc.frequency.exponentialRampToValueAtTime(100, now + 0.1);
+        
+        gain.gain.setValueAtTime(0, now);
+        gain.gain.linearRampToValueAtTime(0.3, now + 0.02);
+        gain.gain.exponentialRampToValueAtTime(0.01, now + 0.15);
+        
+        osc.start(now);
+        osc.stop(now + 0.15);
     } catch (e) {
         console.error("Audio playback failed", e);
     }
@@ -91,11 +128,11 @@ const messageTimeFormatter = new Intl.DateTimeFormat(undefined, {
 // CREATE CHAT MESSAGE
 // =================================================
 
-function createChatMessage({ idPrefix, sender, text }) {
+function createChatMessage({ id, idPrefix, sender, text }) {
     const createdAt = new Date();
 
     return {
-        id: `${idPrefix}-${createdAt.getTime()}`,
+        id: id !== undefined ? String(id) : `${idPrefix}-${createdAt.getTime()}`,
         sender,
         text,
         createdAt: createdAt.toISOString(),
@@ -118,16 +155,19 @@ const isEmojiOnly = (text) => {
 
 const EMOJI_INLINE_REGEX = /([\p{Extended_Pictographic}\p{Regional_Indicator}\u{200D}\p{Emoji_Modifier}\u{FE0F}]+)/gu;
 
-const formatMessageText = (text) => {
-    if (!text) return null;
-    const parts = text.split(EMOJI_INLINE_REGEX);
-    return parts.map((part, i) => {
-        if (i % 2 === 1) {
-            return <span key={i} className="emoji-inline">{part}</span>;
-        }
-        return part;
-    });
-};
+    const formatMessageText = (text) => {
+        if (!text) return null;
+        // Split text by emojis. If you want normal text to wrap, 
+        // we can add a word-break class or just return it inside a span.
+        // It's mostly handled by CSS .bubble { word-break: break-word }
+        const parts = text.split(EMOJI_INLINE_REGEX);
+        return parts.map((part, i) => {
+            if (i % 2 === 1) {
+                return <span key={i} className="emoji-inline">{part}</span>;
+            }
+            return part;
+        });
+    };
 
 // =================================================
 // SCROLL MESSAGES
@@ -222,6 +262,31 @@ function ChatSetupSkeleton() {
     );
 }
 
+function ReplyPreview({ replyingTo, setReplyingTo, partnerName }) {
+    if (!replyingTo) return null;
+    
+    return (
+        <div className="reply-preview" style={{
+            display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+            padding: '8px 12px', background: 'var(--surface)',
+            borderRadius: '8px', marginBottom: '8px', borderLeft: '4px solid var(--accent)',
+            fontSize: '13px'
+        }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', overflow: 'hidden' }}>
+                <span style={{ color: 'var(--accent)', fontWeight: 600, fontFamily: 'var(--brand)' }}>
+                    {replyingTo.sender === 'me' ? 'You' : (replyingTo.senderName || partnerName || 'Them')}
+                </span>
+                <span style={{ color: 'var(--muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    {replyingTo.text}
+                </span>
+            </div>
+            <button type="button" onClick={() => setReplyingTo(null)} style={{ background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer', padding: '4px', display: 'grid', placeItems: 'center' }}>
+                <X size={16} />
+            </button>
+        </div>
+    );
+}
+
 
 // =================================================
 // CHAT
@@ -240,6 +305,7 @@ function Chat() {
     // =================================================
 
     const [chatState, setChatState] = useState("setup");
+    const [replyingTo, setReplyingTo] = useState(null);
 
     const [match, setMatch] =
         useState(anonymousPeople[0]);
@@ -262,6 +328,251 @@ function Chat() {
     const [friendRequests, setFriendRequests] =
         useState([]);
     const [friendRequestsLoading, setFriendRequestsLoading] = useState(false);
+
+    const [contextMenu, setContextMenu] = useState(null);
+    const [isMenuClosing, setIsMenuClosing] = useState(false);
+    const touchTimerRef = useRef(null);
+    const closingTimerRef = useRef(null);
+
+    const handleContextMenu = (e, messageId, isMine = false) => {
+        e.preventDefault();
+        
+        // If the menu is already open or closing for this exact message, just let it close
+        if (contextMenu && contextMenu.messageId === messageId) {
+            if (!isMenuClosing) {
+                closeContextMenu();
+            }
+            return;
+        }
+        
+        if (closingTimerRef.current) clearTimeout(closingTimerRef.current);
+        setIsMenuClosing(false);
+        
+        const rect = e.currentTarget.getBoundingClientRect();
+        const menuWidth = 150;
+        const menuHeight = 130;
+        
+        let x = rect.left > window.innerWidth / 2 ? rect.right - menuWidth : rect.left;
+        let y = rect.bottom + 8;
+        
+        if (x + menuWidth > window.innerWidth) x = window.innerWidth - menuWidth - 10;
+        if (x < 10) x = 10;
+        
+        if (y + menuHeight > window.innerHeight - 12) {
+            y = rect.top - menuHeight - 8;
+        }
+        // Final boundary clamp to prevent touching the bottom edge
+        if (y + menuHeight > window.innerHeight - 12) {
+            y = window.innerHeight - menuHeight - 12;
+        }
+        if (y < 12) y = 12;
+
+        setContextMenu({
+            mouseX: x,
+            mouseY: y,
+            messageId,
+            isMine
+        });
+    };
+
+    const swipeState = useRef({ startX: 0, startY: 0, currentX: 0, element: null, iconElement: null, messageId: null, isSwiping: false });
+
+    const handleTouchStart = (e, messageId, isMine = false) => {
+        const rect = e.currentTarget.getBoundingClientRect();
+        
+        // Add swipe logic
+        if (e.touches && e.touches.length === 1) {
+            const touch = e.touches[0];
+            const bubble = e.currentTarget;
+            const iconElement = bubble.parentElement.querySelector('.swipe-reply-icon');
+            
+            swipeState.current = {
+                startX: touch.clientX,
+                startY: touch.clientY,
+                currentX: touch.clientX,
+                element: bubble,
+                iconElement: iconElement,
+                messageId: messageId,
+                isSwiping: true,
+                isMine: isMine
+            };
+            bubble.style.transition = 'none';
+            if (iconElement) {
+                iconElement.style.transition = 'none';
+                
+                // Position the icon dynamically based on ownership
+                const bubbleRect = bubble.getBoundingClientRect();
+                const rowRect = bubble.parentElement.getBoundingClientRect();
+                
+                if (isMine) {
+                    iconElement.style.left = `${bubbleRect.left - rowRect.left - 40}px`; 
+                } else {
+                    iconElement.style.left = `${bubbleRect.right - rowRect.left + 15}px`; 
+                }
+                iconElement.style.top = `${bubbleRect.top - rowRect.top + bubbleRect.height / 2 - 10}px`; // vertically centered
+                iconElement.style.transform = 'scale(0.5) translateX(0px)';
+            }
+        }
+        
+        touchTimerRef.current = setTimeout(() => {
+            const menuWidth = 150;
+            const menuHeight = 130;
+            
+            let x = rect.left > window.innerWidth / 2 ? rect.right - menuWidth : rect.left;
+            let y = rect.bottom + 8;
+            
+            if (x + menuWidth > window.innerWidth) x = window.innerWidth - menuWidth - 10;
+            if (x < 10) x = 10;
+            
+            if (y + menuHeight > window.innerHeight) {
+                y = rect.top - menuHeight - 8;
+            }
+
+            setContextMenu({
+                mouseX: x,
+                mouseY: y,
+                messageId,
+                isMine
+            });
+        }, 500); // 500ms long press
+    };
+
+    const handleTouchMove = (e) => {
+        if (touchTimerRef.current) {
+            clearTimeout(touchTimerRef.current);
+            touchTimerRef.current = null;
+        }
+
+        const state = swipeState.current;
+        if (!state.isSwiping || !state.element || !e.touches || e.touches.length !== 1) return;
+
+        const touch = e.touches[0];
+        const deltaX = touch.clientX - state.startX;
+        const deltaY = touch.clientY - state.startY;
+
+        state.currentX = touch.clientX;
+
+        // If scrolling vertically, cancel swipe
+        if (Math.abs(deltaY) > Math.abs(deltaX) && Math.abs(deltaY) > 10) {
+            state.isSwiping = false;
+            state.element.style.transition = 'transform 0.2s cubic-bezier(0.16, 1, 0.3, 1)';
+            state.element.style.transform = 'translateX(0px)';
+            if (state.iconElement) {
+                state.iconElement.style.transition = 'all 0.2s ease';
+                state.iconElement.style.opacity = '0';
+                state.iconElement.style.transform = 'scale(0.5)';
+            }
+            return;
+        }
+
+        // Handle swiping based on message ownership
+        const isMine = state.isMine;
+        
+        if (!isMine && deltaX > 0 && deltaX < 80) {
+            // Swipe right for their messages
+            state.element.style.transform = `translateX(${deltaX}px)`;
+            if (state.iconElement) {
+                const progress = Math.min(deltaX / 50, 1);
+                state.iconElement.style.opacity = progress.toString();
+                // Move the icon right with the bubble so it isn't covered
+                state.iconElement.style.transform = `translateX(${deltaX}px) scale(${0.5 + progress * 0.5})`;
+            }
+        } else if (isMine && deltaX < 0 && deltaX > -80) {
+            // Swipe left for my messages
+            state.element.style.transform = `translateX(${deltaX}px)`;
+            if (state.iconElement) {
+                const progress = Math.min(Math.abs(deltaX) / 50, 1);
+                state.iconElement.style.opacity = progress.toString();
+                // Move the icon left with the bubble so it isn't covered
+                state.iconElement.style.transform = `translateX(${deltaX}px) scale(${0.5 + progress * 0.5})`;
+            }
+        }
+    };
+
+    const handleTouchEnd = () => {
+        if (touchTimerRef.current) {
+            clearTimeout(touchTimerRef.current);
+            touchTimerRef.current = null;
+        }
+
+        const state = swipeState.current;
+        if (!state.isSwiping || !state.element) return;
+        state.isSwiping = false;
+
+        const deltaX = state.currentX - state.startX;
+
+        // Snap back
+        state.element.style.transition = 'transform 0.25s cubic-bezier(0.16, 1, 0.3, 1)';
+        state.element.style.transform = 'translateX(0px)';
+        if (state.iconElement) {
+            state.iconElement.style.transition = 'all 0.25s cubic-bezier(0.16, 1, 0.3, 1)';
+            state.iconElement.style.opacity = '0';
+            state.iconElement.style.transform = 'scale(0.5)';
+        }
+
+        // Trigger reply if swiped far enough
+        const isMine = state.isMine;
+        if (!isMine && deltaX > 50) {
+            handleReplyMessage(state.messageId);
+        } else if (isMine && deltaX < -50) {
+            handleReplyMessage(state.messageId);
+        }
+        
+        // Reset state
+        swipeState.current = { startX: 0, startY: 0, currentX: 0, element: null, iconElement: null, messageId: null, isSwiping: false, isMine: false };
+    };
+
+    const closeContextMenu = () => {
+        if (isMenuClosing) return;
+        setIsMenuClosing(true);
+        closingTimerRef.current = setTimeout(() => {
+            setContextMenu(null);
+            setIsMenuClosing(false);
+        }, 150);
+    };
+
+    const handleDeleteMessage = async (messageId) => {
+        // Optimistically mark as deleting
+        setHistoryMessages(prev => prev.map(m => String(m.id) === String(messageId) ? { ...m, isDeleting: true } : m));
+        setMessages(prev => prev.map(m => String(m.id) === String(messageId) ? { ...m, isDeleting: true } : m));
+
+        playDeleteSound();
+
+        setTimeout(() => {
+            setHistoryMessages(prev => prev.filter(m => String(m.id) !== String(messageId)));
+            setMessages(prev => prev.filter(m => String(m.id) !== String(messageId)));
+        }, 350);
+
+        closeContextMenu();
+
+        try {
+            await fetch(`${BACKEND_URL}/api/messages/delete/${messageId}`, {
+                method: "DELETE",
+                credentials: "include"
+            });
+        } catch (err) {
+            console.error("Failed to delete message", err);
+        }
+    };
+
+    const handleEditMessage = (messageId) => {
+        // Will be implemented later
+        console.log("Edit message", messageId);
+        closeContextMenu();
+    };
+
+    const handleReplyMessage = (messageId) => {
+        const msg = historyMessages.find(m => m.id === messageId) || messages.find(m => m.id === messageId);
+        if (msg) setReplyingTo(msg);
+        closeContextMenu();
+        
+        // Focus the correct input based on which chat is active
+        if (chatState === "history") {
+            historyInputRef.current?.focus();
+        } else {
+            messageInputRef.current?.focus();
+        }
+    };
 
     const [conversations, setConversations] = useState([]);
     const [conversationsLoading, setConversationsLoading] = useState(false);
@@ -317,6 +628,9 @@ function Chat() {
     const historyTypingTimerRef =
         useRef(null);
 
+    const contextMenuRef =
+        useRef(null);
+
     const requestsDropdownRef =
         useRef(null);
 
@@ -340,12 +654,19 @@ function Chat() {
             if (conversationsDropdownRef.current && !conversationsDropdownRef.current.contains(event.target)) {
                 setShowConversations(false);
             }
+            if (contextMenu !== null) {
+                if (contextMenuRef.current && !contextMenuRef.current.contains(event.target)) {
+                    closeContextMenu();
+                } else if (!contextMenuRef.current) {
+                    closeContextMenu();
+                }
+            }
         }
         document.addEventListener("mousedown", handleClickOutside);
         return () => {
             document.removeEventListener("mousedown", handleClickOutside);
         };
-    }, []);
+    }, [contextMenu]);
 
 
     // =================================================
@@ -421,7 +742,7 @@ function Chat() {
         async function fetchAndOpenDirect() {
             setShowConversations(false);
             setHistoryMessages([]);
-            setHistoryMessage("");
+            setHistoryMessage(""); setReplyingTo(null);
             setHistoryLoading(true);
             setChatState("history");
 
@@ -673,6 +994,20 @@ function Chat() {
                     return;
                 }
 
+                if (payload.type === "message_deleted") {
+                    const idToDelete = String(payload.message_id);
+                    setHistoryMessages(prev => prev.map(m => String(m.id) === idToDelete ? { ...m, isDeleting: true } : m));
+                    setMessages(prev => prev.map(m => String(m.id) === idToDelete ? { ...m, isDeleting: true } : m));
+                    
+                    playDeleteSound();
+
+                    setTimeout(() => {
+                        setHistoryMessages(prev => prev.filter(m => String(m.id) !== idToDelete));
+                        setMessages(prev => prev.filter(m => String(m.id) !== idToDelete));
+                    }, 350);
+                    return;
+                }
+
                 if (payload.type === "chat_message") {
                     const incomingConvId = payload.conversation_id;
 
@@ -681,6 +1016,7 @@ function Chat() {
                         setHistoryMessages(prev => [
                             ...prev,
                             createChatMessage({
+                                id: payload.id,
                                 idPrefix: "received-history",
                                 sender: "them",
                                 text: payload.text,
@@ -708,6 +1044,7 @@ function Chat() {
                         setMessages((current) => [
                             ...current,
                             createChatMessage({
+                                id: payload.id,
                                 idPrefix: "received",
                                 sender: "them",
                                 text: payload.text,
@@ -780,7 +1117,7 @@ function Chat() {
             messagesRef.current
         );
 
-    }, [messages, isTyping]);
+    }, [messages, isTyping, replyingTo]);
 
 
     // =================================================
@@ -790,7 +1127,7 @@ function Chat() {
     useEffect(() => {
         if (!historyMessagesRef.current) return;
         scrollMessagesToBottom(historyMessagesRef.current);
-    }, [historyMessages, historyIsTyping]);
+    }, [historyMessages, historyIsTyping, replyingTo]);
 
 
     // =================================================
@@ -1075,7 +1412,7 @@ function Chat() {
     async function openConversation(conv) {
         setShowConversations(false);
         setHistoryMessages([]);
-        setHistoryMessage("");
+        setHistoryMessage(""); setReplyingTo(null);
         setHistoryLoading(true);
 
         // Determine the partner's session_id
@@ -1168,7 +1505,7 @@ function Chat() {
         const trimmed = historyMessage.trim();
         if (!trimmed || !activeConv) return;
 
-        setHistoryMessage("");
+        setHistoryMessage(""); setReplyingTo(null);
 
         // Reset textarea height
         if (historyInputRef.current) {
@@ -1219,7 +1556,7 @@ function Chat() {
 
         setMessages([]);
 
-        setMessage("");
+        setMessage(""); setReplyingTo(null);
 
 
         // Explicitly close the WebSocket so the backend fires WebSocketDisconnect
@@ -1258,7 +1595,7 @@ function Chat() {
 
         setMessages([]);
 
-        setMessage("");
+        setMessage(""); setReplyingTo(null);
 
         await startMatching();
     }
@@ -1295,7 +1632,7 @@ function Chat() {
         );
 
 
-        setMessage("");
+        setMessage(""); setReplyingTo(null);
         
         if (messageInputRef.current) {
             messageInputRef.current.style.height = "auto";
@@ -1343,6 +1680,53 @@ function Chat() {
         );
     }
 
+
+    // =================================================
+    // CONTEXT MENU
+    // =================================================
+
+    const renderContextMenu = () => {
+        if (contextMenu === null) return null;
+        return createPortal(
+            <div 
+                ref={contextMenuRef}
+                className={`msg-context-menu ${isMenuClosing ? "closing" : ""}`}
+                style={{
+                    top: contextMenu.mouseY,
+                    left: contextMenu.mouseX,
+                    transformOrigin: contextMenu.mouseY < window.innerHeight / 2 ? "top left" : "bottom left"
+                }}
+                onContextMenu={(e) => e.preventDefault()}
+            >
+                <button 
+                    onClick={() => handleReplyMessage(contextMenu.messageId)}
+                    className="context-btn"
+                >
+                    <CornerUpRight size={16} />
+                    Reply
+                </button>
+                {contextMenu.isMine && (
+                    <>
+                        <button 
+                            onClick={() => handleEditMessage(contextMenu.messageId)}
+                            className="context-btn"
+                        >
+                            <Edit2 size={16} />
+                            Edit
+                        </button>
+                        <button 
+                            onClick={() => handleDeleteMessage(contextMenu.messageId)}
+                            className="context-btn delete-btn"
+                        >
+                            <Trash size={16} />
+                            Delete
+                        </button>
+                    </>
+                )}
+            </div>,
+            document.body
+        );
+    };
 
     // =================================================
     // SESSION LOADING
@@ -1562,7 +1946,7 @@ function Chat() {
                 </header>
 
                 {/* Messages */}
-                <div className="messages" ref={historyMessagesRef}>
+                <div ref={historyMessagesRef} className={`messages ${contextMenu && !isMenuClosing ? "menu-open" : ""}`}>
 
                     <div className="notice" role="status">
                         <div className="notice-copy">
@@ -1584,7 +1968,10 @@ function Chat() {
                     )}
 
                     {historyMessages.map(item => (
-                        <div key={item.id} className={`row ${item.sender === "me" ? "sent" : ""}`}>
+                        <div 
+                            key={item.id} 
+                            className={`row ${item.sender === "me" ? "sent" : ""} ${contextMenu?.messageId === item.id ? "active-context-message" : ""} ${item.isDeleting ? "message-deleting" : ""}`}
+                        >
 
                             {item.sender === "them" && (
                                 <div style={{
@@ -1602,7 +1989,28 @@ function Chat() {
                                 </div>
                             )}
 
-                            <div className={`bubble ${isEmojiOnly(item.text) ? 'emoji-only' : ''}`}>
+                            {item.sender === "me" && (
+                                <button 
+                                    className="msg-context-btn" 
+                                    onClick={(e) => handleContextMenu(e, item.id, item.sender === "me")}
+                                    aria-label="More options"
+                                    title="More options"
+                                >
+                                    <ChevronDown size={16} />
+                                </button>
+                            )}
+
+                            <div className="swipe-reply-icon" style={{ opacity: 0, transform: 'scale(0.5)', position: 'absolute', color: 'var(--text-primary)', pointerEvents: 'none', transition: 'all 0.2s cubic-bezier(0.16, 1, 0.3, 1)' }}>
+                                <Reply size={20} />
+                            </div>
+
+                            <div 
+                                className={`bubble ${isEmojiOnly(item.text) ? 'emoji-only' : ''}`}
+                                onContextMenu={(e) => handleContextMenu(e, item.id, item.sender === "me")}
+                                onTouchStart={(e) => handleTouchStart(e, item.id, item.sender === "me")}
+                                onTouchEnd={handleTouchEnd}
+                                onTouchMove={handleTouchMove}
+                            >
                                 {formatMessageText(item.text)}
                                 <small>
                                     <time dateTime={item.createdAt}>
@@ -1610,6 +2018,17 @@ function Chat() {
                                     </time>
                                 </small>
                             </div>
+                            
+                            {item.sender === "them" && (
+                                <button 
+                                    className="msg-context-btn" 
+                                    onClick={(e) => { e.preventDefault(); handleReplyMessage(item.id); }}
+                                    aria-label="Reply"
+                                    title="Reply"
+                                >
+                                    <CornerUpRight size={16} />
+                                </button>
+                            )}
 
                         </div>
                     ))}
@@ -1641,7 +2060,9 @@ function Chat() {
                 <form className="composer" onSubmit={sendHistoryMessage}>
                     <div className="composer-row">
                         <div className="composer-inner">
-                            <textarea
+                            <ReplyPreview replyingTo={replyingTo} setReplyingTo={setReplyingTo} partnerName={partnerName} />
+                            <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'flex-end', gap: '8px', width: '100%' }}>
+                                <textarea
                                 ref={historyInputRef}
                                 rows={1}
                                 value={historyMessage}
@@ -1682,9 +2103,12 @@ function Chat() {
                             >
                                 <Send size={14} />
                             </button>
+                            </div>
                         </div>
                     </div>
                 </form>
+
+                {renderContextMenu()}
 
             </section>
         );
@@ -1918,7 +2342,7 @@ function Chat() {
             {/* ============================= */}
 
             <div
-                className="messages"
+                className={`messages ${contextMenu && !isMenuClosing ? "menu-open" : ""}`}
                 ref={messagesRef}
             >
 
@@ -1966,7 +2390,7 @@ function Chat() {
                                 item.sender === "me"
                                     ? "sent"
                                     : ""
-                            }`}
+                            } ${contextMenu?.messageId === item.id ? "active-context-message" : ""} ${item.isDeleting ? "message-deleting" : ""}`}
                         >
 
                             {item.sender === "them" && (
@@ -1979,7 +2403,28 @@ function Chat() {
                             )}
 
 
-                            <div className={`bubble ${isEmojiOnly(item.text) ? 'emoji-only' : ''}`}>
+                            {item.sender === "me" && (
+                                <button 
+                                    className="msg-context-btn" 
+                                    onClick={(e) => handleContextMenu(e, item.id, item.sender === "me")}
+                                    aria-label="More options"
+                                    title="More options"
+                                >
+                                    <ChevronDown size={16} />
+                                </button>
+                            )}
+
+                            <div className="swipe-reply-icon" style={{ opacity: 0, transform: 'scale(0.5)', position: 'absolute', color: 'var(--text-primary)', pointerEvents: 'none', transition: 'all 0.2s cubic-bezier(0.16, 1, 0.3, 1)' }}>
+                                <Reply size={20} />
+                            </div>
+
+                            <div 
+                                className={`bubble ${isEmojiOnly(item.text) ? 'emoji-only' : ''}`}
+                                onContextMenu={(e) => handleContextMenu(e, item.id, item.sender === "me")}
+                                onTouchStart={(e) => handleTouchStart(e, item.id, item.sender === "me")}
+                                onTouchEnd={handleTouchEnd}
+                                onTouchMove={handleTouchMove}
+                            >
 
                                 {formatMessageText(item.text)}
 
@@ -2003,6 +2448,17 @@ function Chat() {
                                 </small>
 
                             </div>
+
+                            {item.sender === "them" && (
+                                <button 
+                                    className="msg-context-btn" 
+                                    onClick={(e) => { e.preventDefault(); handleReplyMessage(item.id); }}
+                                    aria-label="Reply"
+                                    title="Reply"
+                                >
+                                    <CornerUpRight size={16} />
+                                </button>
+                            )}
 
                         </div>
 
@@ -2102,8 +2558,9 @@ function Chat() {
 
 
                     <div className="composer-inner">
-
-                        <textarea
+                        <ReplyPreview replyingTo={replyingTo} setReplyingTo={setReplyingTo} partnerName={match?.name} />
+                        <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'flex-end', gap: '8px', width: '100%' }}>
+                            <textarea
                             ref={messageInputRef}
                             value={message}
                             disabled={partnerLeft}
@@ -2150,12 +2607,15 @@ function Chat() {
                             <Send size={14} />
 
                         </button>
+                        </div>
 
                     </div>
 
                 </div>
 
             </form>
+
+            {renderContextMenu()}
 
         </section>
     );

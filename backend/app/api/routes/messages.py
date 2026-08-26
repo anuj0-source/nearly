@@ -306,6 +306,7 @@ async def send_message(
     from api.routes.chat import manager, pending_messages
     payload = {
         "type": "chat_message",
+        "id": db_msg.id,
         "text": body.message,
         "conversation_id": body.conversation_id,
         "sender_id": session_id,
@@ -339,3 +340,63 @@ async def send_message(
         "created_at": db_msg.created_at,
     }
 
+@router.delete("/delete/{message_id}")
+async def delete_message(
+    message_id: int,
+    session_id : str | None = Cookie(default=None),
+    db : Session = Depends(get_db)
+):
+
+    if not session_id:
+        raise HTTPException(
+            status_code=404,
+            detail="No session found"
+        )
+
+    user = db.scalar(
+        select(AnonymousSession)
+        .where(AnonymousSession.session_id == session_id)
+    )
+
+    if not user:
+        raise HTTPException(
+            status_code=404,
+            detail="user not found"
+        )
+
+    message = db.scalar(
+        select(Message)
+        .where(Message.id == message_id)
+    )
+
+    if not message:
+        raise HTTPException(
+            status_code=404,
+            detail="message not found"
+        )
+        
+    if message.sender_id != session_id:
+        raise HTTPException(
+            status_code=403,
+            detail="You can only delete your own messages"
+        )
+        
+    receiver_id = message.receiver_id
+    conversation_id = message.conversation_id
+
+    db.delete(message)
+    db.commit()
+    
+    from api.routes.chat import manager as ws_manager
+    await ws_manager.send_json(
+        receiver_id,
+        {
+            "type": "message_deleted",
+            "message_id": message_id,
+            "conversation_id": conversation_id
+        }
+    )
+    
+    return{
+        "message":"message deleted"
+    }

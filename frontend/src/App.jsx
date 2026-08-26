@@ -15,6 +15,13 @@ function App() {
     const [darkMode, setDarkMode] = useState(() => localStorage.getItem("nearly-theme") === "light" ? false : true);
     useEffect(() => {
         localStorage.setItem("nearly-theme", darkMode ? "dark" : "light");
+        if (darkMode) {
+            document.body.classList.add("theme-dark");
+            document.body.classList.remove("theme-light");
+        } else {
+            document.body.classList.add("theme-light");
+            document.body.classList.remove("theme-dark");
+        }
     }, [darkMode]);
     const toggleTheme = () => setDarkMode((current) => !current);
 
