@@ -2097,6 +2097,13 @@ a { color: inherit; text-decoration: none; }
     backdrop-filter: none;
 }
 
+.emoji-inline {
+    font-size: 1.35em;
+    vertical-align: -0.12em;
+    font-family: "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji", emoji;
+    line-height: 1;
+}
+
 .bubble small {
     display: block;
     margin-top: 4px;

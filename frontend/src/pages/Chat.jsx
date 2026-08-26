@@ -111,7 +111,22 @@ const isEmojiOnly = (text) => {
     if (!text) return false;
     const stripped = text.replace(/\s/g, '');
     if (!stripped) return false;
+    // Fast fail if it contains normal alphanumeric characters (to prevent "123" being large)
+    if (/[a-zA-Z0-9]/i.test(stripped)) return false;
     return /^(\p{Emoji_Presentation}|\p{Extended_Pictographic}|\p{Emoji_Modifier}|\p{Emoji_Component}|\u200D)+$/u.test(stripped);
+};
+
+const EMOJI_INLINE_REGEX = /([\p{Extended_Pictographic}\p{Regional_Indicator}\u{200D}\p{Emoji_Modifier}\u{FE0F}]+)/gu;
+
+const formatMessageText = (text) => {
+    if (!text) return null;
+    const parts = text.split(EMOJI_INLINE_REGEX);
+    return parts.map((part, i) => {
+        if (i % 2 === 1) {
+            return <span key={i} className="emoji-inline">{part}</span>;
+        }
+        return part;
+    });
 };
 
 // =================================================
@@ -1588,7 +1603,7 @@ function Chat() {
                             )}
 
                             <div className={`bubble ${isEmojiOnly(item.text) ? 'emoji-only' : ''}`}>
-                                {item.text}
+                                {formatMessageText(item.text)}
                                 <small>
                                     <time dateTime={item.createdAt}>
                                         {messageTimeFormatter.format(new Date(item.createdAt))}
@@ -1966,7 +1981,7 @@ function Chat() {
 
                             <div className={`bubble ${isEmojiOnly(item.text) ? 'emoji-only' : ''}`}>
 
-                                {item.text}
+                                {formatMessageText(item.text)}
 
 
                                 <small>
