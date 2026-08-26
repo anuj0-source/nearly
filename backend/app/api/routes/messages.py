@@ -7,6 +7,8 @@ from models.user import AnonymousSession
 from models.message import Message
 from models.conversation import Conversation
 from database import get_db
+from models.notification import Notification
+from datetime import datetime
 
 router = APIRouter(
     prefix="/api/messages"
@@ -262,6 +264,13 @@ async def send_message(
         else conversation.user1_session_id
     )
 
+    partner = db.scalar(
+        select(AnonymousSession)
+        .where(AnonymousSession.session_id == partner_id)
+    )
+    if not partner:
+        raise HTTPException(status_code=404, detail="Partner not found")
+
     # Persist the message
     db_msg = Message(
         conversation_id=body.conversation_id,
@@ -285,6 +294,22 @@ async def send_message(
         "sender_avatar": user.avatar,
     }
     await manager.send_json(partner_id, payload)
+
+    notification=Notification(
+        session_id=partner.id,
+        type="message",
+        payload={
+            "conversation_id":body.conversation_id,
+            "sender_id":session_id,
+            "sender_name":user.name,
+            "sender_avatar":user.avatar,
+        },
+        is_read=False,
+        created_at=datetime.now()
+    )
+    db.add(notification)
+    db.commit()
+    db.refresh(notification)
 
     return {
         "id": db_msg.id,

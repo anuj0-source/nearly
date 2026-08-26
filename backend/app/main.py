@@ -7,6 +7,7 @@ from database import engine,Base
 from api.routes.chat import router as chat_router
 from api.routes.friend import router as friend_router
 from api.routes.messages import router as messages_router
+from api.routes.notification import router as notification_router
 from sqlalchemy import text
 
 app=FastAPI(
@@ -35,6 +36,7 @@ app.include_router(session_router)
 app.include_router(profile_router)
 app.include_router(nearby_router)
 app.include_router(messages_router)
+app.include_router(notification_router)
 
 @app.get("/health")
 async def health():

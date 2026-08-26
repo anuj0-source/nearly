@@ -126,4 +126,36 @@ export async function getNearbyStatus() {
     return res.json(); // { is_nearby_enabled: true | false }
 }
 
+export async function getNotifications() {
+    const res = await fetch(`${BACKEND_URL}/api/notification/all`, {
+        credentials: "include",
+    });
+    if (!res.ok) {
+        throw new Error("Failed to get notifications");
+    }
+    return res.json();
+}
 
+export async function readNotification(id) {
+    const res = await fetch(`${BACKEND_URL}/api/notification/read/${id}`, {
+        method: "POST",
+        credentials: "include",
+    });
+    return res.json();
+}
+
+export async function clearAllNotifications() {
+    const res = await fetch(`${BACKEND_URL}/api/notification/clear-all`, {
+        method: "POST",
+        credentials: "include",
+    });
+    return res.json();
+}
+
+export async function clearNotification(id) {
+    const res = await fetch(`${BACKEND_URL}/api/notification/clear/${id}`, {
+        method: "PATCH",
+        credentials: "include",
+    });
+    return res.json();
+}

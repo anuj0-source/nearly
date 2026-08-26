@@ -1,10 +1,11 @@
+from datetime import datetime
 from fastapi import APIRouter,Response,Cookie,HTTPException,Depends
 from database import get_db
 from sqlalchemy.orm import Session
 from sqlalchemy import select
 from models.user import AnonymousSession
 from api.routes.chat import manager
-
+from models.notification import Notification
 router=APIRouter(
     prefix="/api/friend"
 )
@@ -51,6 +52,22 @@ async def send_friend_request(
                 "avatar":user1.avatar
             }
         )
+    
+    notification=Notification(
+        session_id=user2.id,
+        type="friend_request",
+        payload={
+            "user":user1.name,
+            "avatar":user1.avatar,
+            "session_id":user1.session_id
+        },
+        is_read=False,
+        created_at=datetime.now()
+    )
+
+    db.add(notification)
+    db.commit()
+    db.refresh(notification)
     
     return {
         "message":"friend request sent"
@@ -137,6 +154,20 @@ async def accept_friend_request(
                 "avatar":user1.avatar
             }
         )
+
+    notification=Notification(
+        session_id=user2.id,
+        type="friend_request_accepted",
+        payload={
+            "user":user1.name,
+            "avatar":user1.avatar
+        },
+        is_read=False,
+        created_at=datetime.now()
+    )
+    db.add(notification)
+    db.commit()
+    db.refresh(notification)
     
     return {
         "message":"friend request accepted"
