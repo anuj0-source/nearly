@@ -339,6 +339,7 @@ a { color: inherit; text-decoration: none; }
 }
 
 .dashboard-main {
+    position: relative;
     min-width: 0;
     flex: 1 1 auto;
     width: 100%;

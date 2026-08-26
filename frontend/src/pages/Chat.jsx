@@ -1351,6 +1351,9 @@ function Chat() {
 
         return (
             <section className="chat-setup">
+                <div style={{ position: "absolute", top: 24, left: 16, zIndex: 10 }}>
+                    <span className="brand-logo-type" style={{ fontSize: 22 }}>Near<span>ly</span></span>
+                </div>
                 <div style={{ position: "absolute", top: 24, right: 24, display: "flex", gap: 12, zIndex: 10 }}>
                     <HeaderIcons session={session} />
                 </div>
