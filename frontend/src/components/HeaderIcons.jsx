@@ -84,6 +84,7 @@ export default function HeaderIcons({ session }) {
                     fetchNotifications();
                 } else if (data.type === "chat_message") {
                     fetchConversations();
+                    fetchNotifications();
                 }
             } catch (e) {
                 console.error("Error parsing websocket message in HeaderIcons", e);
@@ -124,6 +125,30 @@ export default function HeaderIcons({ session }) {
             });
         }
     }, [showNotifications]);
+
+    // Listen for events from GlobalNotifications (toasts)
+    useEffect(() => {
+        const handleClearFriend = (event) => {
+            const senderId = event.detail.senderId;
+            const notif = notifications.find(n => n.type === "friend_request" && n.payload?.session_id === senderId);
+            if (notif) clearNotification(notif.id);
+        };
+        const handleReadMessage = (event) => {
+            const senderId = event.detail.senderId;
+            setNotifications(prev => prev.map(n => 
+                (n.type === "message" && n.payload?.sender_id === senderId) 
+                ? { ...n, is_read: true } 
+                : n
+            ));
+        };
+        
+        window.addEventListener("clear_friend_notification", handleClearFriend);
+        window.addEventListener("read_message_notification", handleReadMessage);
+        return () => {
+            window.removeEventListener("clear_friend_notification", handleClearFriend);
+            window.removeEventListener("read_message_notification", handleReadMessage);
+        };
+    }, [notifications]);
 
     async function fetchFriendRequests() {
         try {

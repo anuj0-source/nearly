@@ -408,28 +408,12 @@ function Chat() {
                 
                 if (res.ok) {
                     const data = await res.json();
-                    
-                    // Fetch live status fresh
-                    let freshStatus = "inactive";
-                    try {
-                        const statusRes = await fetch(
-                            `${BACKEND_URL}/api/messages/partner-status/${partnerParam}`,
-                            { credentials: "include" }
-                        );
-                        if (statusRes.ok) {
-                            const statusData = await statusRes.json();
-                            freshStatus = statusData.status;
-                        }
-                    } catch {
-                        // fallback
-                    }
-
                     // Build synthetic conv object
                     const conv = {
                         conversation_id: data.conversation_id,
                         partner_name: data.partner_name,
                         partner_avatar: data.partner_avatar,
-                        partner_status: freshStatus,
+                        partner_status: data.partner_status || "inactive",
                         // Provide session IDs so other logic doesn't break
                         user1_session_id: session?.session_id,
                         user2_session_id: partnerParam,

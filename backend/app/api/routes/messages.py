@@ -107,6 +107,8 @@ async def mark_messages_as_read(
     if not session_id:
         raise HTTPException(status_code=401, detail="No session found")
 
+    user = db.scalar(select(AnonymousSession).where(AnonymousSession.session_id == session_id))
+
     messages = db.scalars(
         select(Message)
         .where(
@@ -118,6 +120,19 @@ async def mark_messages_as_read(
 
     for msg in messages:
         msg.is_read = True
+
+    if user:
+        notifications = db.scalars(
+            select(Notification)
+            .where(
+                (Notification.session_id == user.id) &
+                (Notification.type == "message") &
+                (Notification.is_read == False)
+            )
+        ).all()
+        for notif in notifications:
+            if isinstance(notif.payload, dict) and notif.payload.get("conversation_id") == conversation_id:
+                notif.is_read = True
 
     db.commit()
 
@@ -221,11 +236,15 @@ async def get_partner_conversation_messages(
         .order_by(Message.created_at.asc())
     ).all()
 
+    from api.routes.chat import manager as ws_manager
+    is_online = partner_session_id in ws_manager.connections
+
     return {
         "conversation_id": conversation.conversation_id,
         "partner_name": friend.name if friend else "Unknown",
         "partner_avatar": friend.avatar if friend else None,
         "is_friend": friend in user.friends if friend else False,
+        "partner_status": "active" if is_online else "inactive",
         "messages": messages,
     }
 

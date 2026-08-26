@@ -49,7 +49,8 @@ async def send_friend_request(
                 "type":"notification",
                 "event":"Sent friend request",
                 "user":user1.name,
-                "avatar":user1.avatar
+                "avatar":user1.avatar,
+                "session_id":user1.session_id
             }
         )
     
@@ -151,7 +152,8 @@ async def accept_friend_request(
                 "type":"notification",
                 "event":"Accepted your friend request",
                 "user":user1.name,
-                "avatar":user1.avatar
+                "avatar":user1.avatar,
+                "session_id":user1.session_id
             }
         )
 

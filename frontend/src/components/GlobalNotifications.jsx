@@ -1,7 +1,9 @@
 import { useEffect, useState, useCallback } from "react";
-import { useLocation, useSearchParams } from "react-router-dom";
+import { useLocation, useSearchParams, useNavigate } from "react-router-dom";
 import { useWebSocket } from "../contexts/WebSocketContext";
-import { Bell, MessageCircle, X } from "lucide-react";
+import { Bell, MessageCircle, X, Check } from "lucide-react";
+
+const BACKEND_URL = import.meta.env.VITE_BACKEND_URL ?? "http://localhost:8000";
 
 const playNotificationSound = () => {
     try {
@@ -50,12 +52,39 @@ const playNotificationSound = () => {
 export default function GlobalNotifications() {
     const { addMessageListener } = useWebSocket();
     const location = useLocation();
+    const navigate = useNavigate();
     const [searchParams] = useSearchParams();
     const [toasts, setToasts] = useState([]);
 
     const removeToast = useCallback((id) => {
         setToasts((prev) => prev.filter((t) => t.id !== id));
     }, []);
+
+    const handleAccept = async (e, friendId, toastId) => {
+        e.stopPropagation();
+        try {
+            await fetch(`${BACKEND_URL}/api/friend/accept/${friendId}`, { method: "POST", credentials: "include" });
+            window.dispatchEvent(new CustomEvent("clear_friend_notification", { detail: { senderId: friendId } }));
+            removeToast(toastId);
+        } catch (error) { console.error(error); }
+    };
+
+    const handleReject = async (e, friendId, toastId) => {
+        e.stopPropagation();
+        try {
+            await fetch(`${BACKEND_URL}/api/friend/reject/${friendId}`, { method: "POST", credentials: "include" });
+            window.dispatchEvent(new CustomEvent("clear_friend_notification", { detail: { senderId: friendId } }));
+            removeToast(toastId);
+        } catch (error) { console.error(error); }
+    };
+
+    const handleToastClick = (toast) => {
+        if (toast.toastType === "chat_message" && toast.senderId) {
+            navigate(`/chat?partner=${toast.senderId}`);
+            window.dispatchEvent(new CustomEvent("read_message_notification", { detail: { senderId: toast.senderId } }));
+            removeToast(toast.id);
+        }
+    };
 
     useEffect(() => {
         if (!addMessageListener) return;
@@ -71,13 +100,16 @@ export default function GlobalNotifications() {
                     
                     let title = "Notification";
                     let message = data.event;
+                    let toastType = "generic";
 
                     if (data.event === "Sent friend request" && data.user) {
                         title = "New Friend Request";
                         message = `${data.user} sent you a friend request`;
+                        toastType = "friend_request";
                     } else if (data.event === "Accepted your friend request" && data.user) {
                         title = "Friend Request Accepted";
                         message = `${data.user} accepted your friend request`;
+                        toastType = "friend_request_accepted";
                     }
 
                     const toast = {
@@ -86,12 +118,18 @@ export default function GlobalNotifications() {
                         message,
                         time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
                         icon: "notification",
-                        avatar: data.avatar
+                        avatar: data.avatar,
+                        senderId: data.session_id,
+                        toastType
                     };
                     
                     playNotificationSound();
                     setToasts((prev) => [...prev, toast]);
-                    setTimeout(() => removeToast(id), 5000);
+                    
+                    // Keep friend requests alive so they can click accept/reject
+                    if (toastType !== "friend_request") {
+                        setTimeout(() => removeToast(id), 5000);
+                    }
                 } 
                 else if (data.type === "chat_message") {
                     // Show toast if user is not on chat page, or if they are on chat but talking to someone else
@@ -103,7 +141,9 @@ export default function GlobalNotifications() {
                             message: data.text,
                             time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
                             icon: "chat",
-                            avatar: data.sender_avatar
+                            avatar: data.sender_avatar,
+                            senderId: data.sender_id,
+                            toastType: "chat_message"
                         };
                         
                         playNotificationSound();
@@ -125,7 +165,7 @@ export default function GlobalNotifications() {
     return (
         <div className="global-notifications-container">
             {toasts.map((toast) => (
-                <div key={toast.id} className="notification-toast">
+                <div key={toast.id} className="notification-toast" onClick={() => handleToastClick(toast)}>
                     <div className="toast-icon-wrapper">
                         {toast.avatar ? (
                             <img src={toast.avatar} alt="avatar" className="toast-avatar" />
@@ -142,9 +182,33 @@ export default function GlobalNotifications() {
                         </div>
                         <p className="toast-message">{toast.message}</p>
                     </div>
-                    <button className="toast-close" onClick={() => removeToast(toast.id)}>
-                        <X size={14} />
-                    </button>
+                    
+                    {toast.toastType === "friend_request" && toast.senderId && (
+                        <div className="freq-actions" style={{ marginLeft: "auto", display: "flex", gap: "6px", alignSelf: "center", position: "relative", zIndex: 2 }} onClick={e => e.stopPropagation()}>
+                            <button
+                                className="freq-btn freq-accept"
+                                aria-label="Accept"
+                                title="Accept"
+                                onClick={(e) => handleAccept(e, toast.senderId, toast.id)}
+                            >
+                                <Check size={16} strokeWidth={2.5} />
+                            </button>
+                            <button
+                                className="freq-btn freq-reject"
+                                aria-label="Reject"
+                                title="Reject"
+                                onClick={(e) => handleReject(e, toast.senderId, toast.id)}
+                            >
+                                <X size={16} strokeWidth={2.5} />
+                            </button>
+                        </div>
+                    )}
+
+                    {toast.toastType !== "friend_request" && (
+                        <button className="toast-close" onClick={(e) => { e.stopPropagation(); removeToast(toast.id); }}>
+                            <X size={14} />
+                        </button>
+                    )}
                 </div>
             ))}
         </div>
