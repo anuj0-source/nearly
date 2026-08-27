@@ -1,15 +1,10 @@
-import { useEffect, useState } from "react";
-import { Bell, ChevronRight, Eye, Lock, Shield, SlidersHorizontal } from "lucide-react";
+import { useEffect, useState, useRef } from "react";
+import { ChevronRight, Shield, SlidersHorizontal, Pencil, Trash2 } from "lucide-react";
 import AnonymousAvatar from "../components/AnonymousAvatar";
 import ThemeToggle from "../components/ThemeToggle";
+import EditProfileModal from "../components/EditProfileModal";
 
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL ?? "http://localhost:8000";
-
-const settings = [
-    { Icon: Lock, title: "Privacy", desc: "Your real identity is never shared in chat" },
-    { Icon: Bell, title: "Notifications", desc: "Quietly let us know when someone replies" },
-    { Icon: Eye, title: "Visibility", desc: "Stay discoverable to the people nearby" },
-];
 
 function ProfileSkeleton() {
     return (
@@ -37,16 +32,6 @@ function ProfileSkeleton() {
 
                 <section>
                     <div className="set-card">
-                        {settings.map(({ title }) => (
-                            <div className="set-row skeleton-set-row" key={title}>
-                                <div>
-                                    <div className="skeleton-line skeleton-set-title" />
-                                    <div className="skeleton-line skeleton-set-desc" />
-                                </div>
-                                <div className="skeleton-chevron" />
-                            </div>
-                        ))}
-
                         <div className="set-row skeleton-set-row">
                             <div>
                                 <div className="skeleton-line skeleton-set-title" />
@@ -54,15 +39,6 @@ function ProfileSkeleton() {
                             </div>
                             <div className="skeleton-toggle" />
                         </div>
-                    </div>
-
-                    <div className="signin-cta skeleton-signin">
-                        <div className="skeleton-shield" />
-                        <div className="signin-copy">
-                            <div className="skeleton-line skeleton-set-title" />
-                            <div className="skeleton-line skeleton-set-desc" />
-                        </div>
-                        <div className="skeleton-chevron" />
                     </div>
                 </section>
             </div>
@@ -74,6 +50,57 @@ function Profile({ darkMode, onToggleTheme }) {
     const [profile, setProfile] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState("");
+    const [isModalOpen, setIsModalOpen] = useState(false);
+    const fileInputRef = useRef(null);
+
+    const handleAvatarChange = async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        const formData = new FormData();
+        formData.append("file", file);
+
+        try {
+            const response = await fetch(`${BACKEND_URL}/api/profile/upload-avatar`, {
+                method: "PATCH",
+                credentials: "include",
+                body: formData,
+            });
+
+            if (!response.ok) {
+                throw new Error("Failed to upload avatar");
+            }
+
+            const data = await response.json();
+            setProfile(data);
+            setError("");
+        } catch (err) {
+            console.error("Avatar upload failed:", err);
+            setError("Failed to upload avatar. Please try again.");
+        }
+        
+        e.target.value = null;
+    };
+
+    const handleRemoveAvatar = async () => {
+        try {
+            const response = await fetch(`${BACKEND_URL}/api/profile/remove-avatar`, {
+                method: "PATCH",
+                credentials: "include"
+            });
+
+            if (!response.ok) {
+                throw new Error("Failed to remove avatar");
+            }
+
+            const data = await response.json();
+            setProfile(data);
+            setError("");
+        } catch (err) {
+            console.error("Avatar remove failed:", err);
+            setError("Failed to remove avatar. Please try again.");
+        }
+    };
 
     useEffect(() => {
         const controller = new AbortController();
@@ -118,6 +145,9 @@ function Profile({ darkMode, onToggleTheme }) {
     const avatar = profile?.avatar ?? "ghost";
     const language = profile?.language ?? "hinglish";
     const gender = profile?.gender ?? "not-defined";
+    const joinedDate = profile?.created_at 
+        ? new Date(profile.created_at).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) 
+        : null;
 
     return (
         <div className="page">
@@ -134,7 +164,24 @@ function Profile({ darkMode, onToggleTheme }) {
             <div className="profile-grid">
                 <section className="id-card">
                     <div className="id-row">
-                        <AnonymousAvatar type={avatar} size="lg" online />
+                        <div className="avatar-wrapper" style={{ position: 'relative', display: 'flex' }}>
+                            <AnonymousAvatar type={avatar} size="lg" online />
+                            <input 
+                                type="file" 
+                                ref={fileInputRef} 
+                                style={{ display: 'none' }} 
+                                accept="image/jpeg, image/png, image/webp" 
+                                onChange={handleAvatarChange} 
+                            />
+                            <button 
+                                className="avatar-edit-badge"
+                                onClick={() => fileInputRef.current.click()}
+                                aria-label="Change Avatar"
+                                data-tooltip="Change avatar"
+                            >
+                                <Pencil size={12} strokeWidth={2.5} />
+                            </button>
+                        </div>
                         <div>
                             <h2>{name}</h2>
                             <p className="sub"><span className="dot" /> Available for chat</p>
@@ -144,25 +191,22 @@ function Profile({ darkMode, onToggleTheme }) {
                     <div className="profile-meta">
                         <span className="meta-pill">Language: {language}</span>
                         <span className="meta-pill">Gender: {gender}</span>
+                        {joinedDate && <span className="meta-pill">Joined: {joinedDate}</span>}
                     </div>
 
-                    <button className="btn btn-ghost avatar-change" type="button">
-                        <SlidersHorizontal size={13} strokeWidth={1.75} /> Change avatar
+                    {avatar?.includes("res.cloudinary.com") && (
+                        <button className="btn btn-ghost danger" type="button" onClick={handleRemoveAvatar} style={{ marginTop: "16px", width: "100%", color: "#e53e3e", background: "rgba(229, 62, 62, 0.08)" }}>
+                            <Trash2 size={14} strokeWidth={1.75} /> Remove Photo
+                        </button>
+                    )}
+
+                    <button className="btn btn-ghost avatar-change" type="button" style={{ marginTop: avatar?.includes("res.cloudinary.com") ? "8px" : "16px", width: "100%" }} onClick={() => setIsModalOpen(true)}>
+                        <SlidersHorizontal size={14} strokeWidth={1.75} /> Edit Profile
                     </button>
                 </section>
 
                 <section>
                     <div className="set-card">
-                        {settings.map(({ Icon, title, desc }) => (
-                            <button className="set-row" type="button" key={title}>
-                                <div>
-                                    <b><Icon size={14} strokeWidth={1.75} /> {title}</b>
-                                    <small>{desc}</small>
-                                </div>
-                                <ChevronRight size={15} color="var(--faint)" />
-                            </button>
-                        ))}
-
                         <div className="set-row">
                             <div>
                                 <b>Theme</b>
@@ -172,16 +216,23 @@ function Profile({ darkMode, onToggleTheme }) {
                         </div>
                     </div>
 
-                    <button className="signin-cta" type="button">
+                    <button className="signin-cta" type="button" style={{ marginTop: "16px" }}>
                         <Shield size={15} strokeWidth={1.75} />
                         <div className="signin-copy">
-                            <b>Not signed in</b>
+                            <b>Claim Account</b>
                             <small>Sign in with Google to keep this identity across devices.</small>
                         </div>
                         <ChevronRight size={15} color="var(--faint)" />
                     </button>
                 </section>
             </div>
+            
+            <EditProfileModal
+                isOpen={isModalOpen}
+                onClose={() => setIsModalOpen(false)}
+                profile={profile}
+                onSave={(updatedProfile) => setProfile(updatedProfile)}
+            />
         </div>
     );
 }

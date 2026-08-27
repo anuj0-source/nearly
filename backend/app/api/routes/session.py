@@ -132,7 +132,7 @@ async def create_anonymous_session(response:Response,session_id:str | None = Coo
 
     seed = random.randint(1, 1000000)
 
-    avatar=f"https://api.dicebear.com/9.x/notionists/svg?seed={seed}"
+    avatar=f"https://api.dicebear.com/9.x/notionists/svg?seed={seed}&backgroundColor=b6e3f4,c0aede,d1d4f9,ffd5dc,ffdfbf"
 
     user=AnonymousSession(
         name = f"{ADJECTIVES[first_name_index]} {ANIMALS[last_name_index]}",
