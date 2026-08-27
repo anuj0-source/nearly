@@ -152,6 +152,8 @@ async def get_partner_status(partner_session_id: str):
 @router.get("/messages/{conversation_id}")
 async def get_messages(
     conversation_id : str,
+    skip: int = 0,
+    limit: int = 15,
     session_id : str | None = Cookie(default=None),
     db : Session = Depends(get_db)
 ):
@@ -178,14 +180,18 @@ async def get_messages(
             (Message.conversation_id == conversation_id) & 
             ((Message.sender_id == session_id) | (Message.receiver_id == session_id))
         )
-        .order_by(Message.created_at.asc())
+        .order_by(Message.created_at.desc())
+        .offset(skip)
+        .limit(limit)
     ).all()
     
-    return messages
+    return list(reversed(messages))
 
 @router.get("/conversation/{partner_session_id}")
 async def get_partner_conversation_messages(
     partner_session_id: str,
+    skip: int = 0,
+    limit: int = 15,
     session_id: str | None = Cookie(default=None),
     db: Session = Depends(get_db)
 ):
@@ -231,7 +237,9 @@ async def get_partner_conversation_messages(
     messages = db.scalars(
         select(Message)
         .where(Message.conversation_id == conversation.conversation_id)
-        .order_by(Message.created_at.asc())
+        .order_by(Message.created_at.desc())
+        .offset(skip)
+        .limit(limit)
     ).all()
 
     from api.routes.chat import manager as ws_manager
@@ -243,7 +251,7 @@ async def get_partner_conversation_messages(
         "partner_avatar": friend.avatar if friend else None,
         "is_friend": friend in user.friends if friend else False,
         "partner_status": "active" if is_online else "inactive",
-        "messages": messages,
+        "messages": list(reversed(messages)),
     }
 
 @router.post("/send")

@@ -646,6 +646,8 @@ function Chat() {
     }, [activeConv]);
     const [historyMessages, setHistoryMessages] = useState([]); // loaded messages for history view
     const [historyLoading, setHistoryLoading] = useState(false);
+    const [hasMoreHistory, setHasMoreHistory] = useState(true);
+    const [isFetchingMoreHistory, setIsFetchingMoreHistory] = useState(false);
     const [historyMessage, setHistoryMessage] = useState(""); // input for history composer
     const [historyIsTyping, setHistoryIsTyping] = useState(false); // partner typing in history view
 
@@ -763,7 +765,6 @@ function Chat() {
             setActiveConv({ ...openConv, partner_status: freshStatus });
 
             // Messages were pre-fetched by Friends.jsx — map them now
-            const prefetched = openConv.prefetchedMessages || [];
             const mapped = prefetched.map(m => ({
                 id: String(m.id),
                 sender: m.sender_id === session?.session_id ? "me" : "them",
@@ -772,9 +773,17 @@ function Chat() {
                 reply_of: m.reply_of ? String(m.reply_of) : null,
                 edited: m.edited,
             }));
+            if (mapped.length < 15) {
+                setHasMoreHistory(false);
+            } else {
+                setHasMoreHistory(true);
+            }
             setHistoryMessages(mapped);
             setHistoryLoading(false);
             setChatState("history");
+            requestAnimationFrame(() => {
+                if (historyMessagesRef.current) scrollMessagesToBottom(historyMessagesRef.current, "auto");
+            });
 
             // Clear the state so a refresh doesn't re-trigger
             window.history.replaceState({}, "");
@@ -807,6 +816,7 @@ function Chat() {
             setHistoryMessages([]);
             setHistoryMessage(""); setReplyingTo(null);
             setHistoryLoading(true);
+            setHasMoreHistory(true);
             setChatState("history");
 
             try {
@@ -831,7 +841,6 @@ function Chat() {
                     };
                     setActiveConv(conv);
 
-                    // Map backend messages
                     const mapped = (data.messages || []).map(m => ({
                         id: String(m.id),
                         sender: m.sender_id === session?.session_id ? "me" : "them",
@@ -840,7 +849,13 @@ function Chat() {
                         reply_of: m.reply_of ? String(m.reply_of) : null,
                         edited: m.edited,
                     }));
+                    if (mapped.length < 15) {
+                        setHasMoreHistory(false);
+                    }
                     setHistoryMessages(mapped);
+                    requestAnimationFrame(() => {
+                        if (historyMessagesRef.current) scrollMessagesToBottom(historyMessagesRef.current, "auto");
+                    });
 
                     // Mark conversation as read since we just opened it
                     if (data.conversation_id) {
@@ -1209,7 +1224,7 @@ function Chat() {
     useEffect(() => {
         if (!historyMessagesRef.current) return;
         scrollMessagesToBottom(historyMessagesRef.current);
-    }, [historyMessages, historyIsTyping, replyingTo]);
+    }, [historyIsTyping, replyingTo]);
 
 
     // =================================================
@@ -1499,6 +1514,7 @@ function Chat() {
         setHistoryMessages([]);
         setHistoryMessage(""); setReplyingTo(null);
         setHistoryLoading(true);
+        setHasMoreHistory(true);
 
         // Determine the partner's session_id
         const partnerSessionId = conv.user1_session_id === session?.session_id
@@ -1529,7 +1545,6 @@ function Chat() {
             );
             if (res.ok) {
                 const data = await res.json();
-                // Map backend Message shape → local message format
                 const mapped = data.map(m => ({
                     id: String(m.id),
                     sender: m.sender_id === session?.session_id ? "me" : "them",
@@ -1538,7 +1553,13 @@ function Chat() {
                     reply_of: m.reply_of ? String(m.reply_of) : null,
                     edited: m.edited,
                 }));
+                if (mapped.length < 15) {
+                    setHasMoreHistory(false);
+                }
                 setHistoryMessages(mapped);
+                requestAnimationFrame(() => {
+                    if (historyMessagesRef.current) scrollMessagesToBottom(historyMessagesRef.current, "auto");
+                });
             }
         } catch (err) {
             console.error("Failed to load conversation history:", err);
@@ -1549,6 +1570,59 @@ function Chat() {
         setSearchParams({ partner: partnerSessionId }, { replace: true });
     }
 
+
+    const handleHistoryScroll = async (e) => {
+        if (!hasMoreHistory || isFetchingMoreHistory || !activeConv) return;
+        const container = e.target;
+        if (container.scrollTop === 0) {
+            setIsFetchingMoreHistory(true);
+            const prevScrollHeight = container.scrollHeight;
+            const partnerSessionId = activeConv.partner_session_id || (
+                activeConv.user1_session_id === session?.session_id
+                    ? activeConv.user2_session_id
+                    : activeConv.user1_session_id
+            );
+
+            try {
+                let url = `${BACKEND_URL}/api/messages/conversation/${partnerSessionId}?skip=${historyMessages.length}&limit=15`;
+                if (activeConv.conversation_id && !activeConv.user1_session_id) {
+                    url = `${BACKEND_URL}/api/messages/messages/${activeConv.conversation_id}?skip=${historyMessages.length}&limit=15`;
+                }
+
+                const res = await fetch(url, { credentials: "include" });
+                if (res.ok) {
+                    const data = await res.json();
+                    const newMessages = Array.isArray(data) ? data : (data.messages || []);
+                    const mapped = newMessages.map(m => ({
+                        id: String(m.id),
+                        sender: m.sender_id === session?.session_id ? "me" : "them",
+                        text: m.message,
+                        createdAt: m.created_at.endsWith("Z") ? m.created_at : m.created_at + "Z",
+                        reply_of: m.reply_of ? String(m.reply_of) : null,
+                        edited: m.edited,
+                    }));
+
+                    if (mapped.length < 15) {
+                        setHasMoreHistory(false);
+                    }
+
+                    if (mapped.length > 0) {
+                        setHistoryMessages(prev => [...mapped, ...prev]);
+                        requestAnimationFrame(() => {
+                            if (historyMessagesRef.current) {
+                                const newScrollHeight = historyMessagesRef.current.scrollHeight;
+                                historyMessagesRef.current.scrollTop = newScrollHeight - prevScrollHeight;
+                            }
+                        });
+                    }
+                }
+            } catch (error) {
+                console.error("Failed to fetch older messages", error);
+            } finally {
+                setIsFetchingMoreHistory(false);
+            }
+        }
+    };
 
     async function acceptFriendRequest(friendId) {
         try {
@@ -2084,7 +2158,7 @@ function Chat() {
                 </header>
 
                 {/* Messages */}
-                <div ref={historyMessagesRef} className={`messages ${contextMenu && !isMenuClosing ? "menu-open" : ""}`}>
+                <div ref={historyMessagesRef} className={`messages ${contextMenu && !isMenuClosing ? "menu-open" : ""}`} onScroll={handleHistoryScroll}>
 
                     <div className="notice" role="status">
                         <div className="notice-copy">
