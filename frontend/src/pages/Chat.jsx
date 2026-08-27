@@ -128,7 +128,7 @@ const messageTimeFormatter = new Intl.DateTimeFormat(undefined, {
 // CREATE CHAT MESSAGE
 // =================================================
 
-function createChatMessage({ id, idPrefix, sender, text }) {
+function createChatMessage({ id, idPrefix, sender, text, reply_of }) {
     const createdAt = new Date();
 
     return {
@@ -136,6 +136,7 @@ function createChatMessage({ id, idPrefix, sender, text }) {
         sender,
         text,
         createdAt: createdAt.toISOString(),
+        reply_of: (reply_of !== undefined && reply_of !== null) ? String(reply_of) : null,
     };
 }
 
@@ -262,6 +263,31 @@ function ChatSetupSkeleton() {
     );
 }
 
+function EditPreview({ editingMessage, setEditingMessage }) {
+    if (!editingMessage) return null;
+    
+    return (
+        <div className="edit-preview" style={{
+            display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+            padding: '8px 12px', background: 'var(--surface)',
+            borderRadius: '8px', marginBottom: '8px', borderLeft: '4px solid var(--accent)',
+            fontSize: '13px'
+        }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', overflow: 'hidden' }}>
+                <span style={{ color: 'var(--accent)', fontWeight: 600, fontFamily: 'var(--brand)' }}>
+                    Editing Message
+                </span>
+                <span style={{ color: 'var(--muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    {editingMessage.text}
+                </span>
+            </div>
+            <button type="button" onClick={() => setEditingMessage(null)} style={{ background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer', padding: '4px', display: 'grid', placeItems: 'center' }}>
+                <X size={16} />
+            </button>
+        </div>
+    );
+}
+
 function ReplyPreview({ replyingTo, setReplyingTo, partnerName }) {
     if (!replyingTo) return null;
     
@@ -306,6 +332,7 @@ function Chat() {
 
     const [chatState, setChatState] = useState("setup");
     const [replyingTo, setReplyingTo] = useState(null);
+    const [editingMessage, setEditingMessage] = useState(null);
 
     const [match, setMatch] =
         useState(anonymousPeople[0]);
@@ -556,8 +583,17 @@ function Chat() {
     };
 
     const handleEditMessage = (messageId) => {
-        // Will be implemented later
-        console.log("Edit message", messageId);
+        const msg = historyMessages.find(m => String(m.id) === String(messageId)) || messages.find(m => String(m.id) === String(messageId));
+        if (msg) {
+            setEditingMessage(msg);
+            if (chatState === "history") {
+                setHistoryMessage(msg.text || msg.message || "");
+                setTimeout(() => historyInputRef.current?.focus(), 0);
+            } else {
+                setMessage(msg.text || msg.message || "");
+                setTimeout(() => messageInputRef.current?.focus(), 0);
+            }
+        }
         closeContextMenu();
     };
 
@@ -707,7 +743,9 @@ function Chat() {
                 id: String(m.id),
                 sender: m.sender_id === session?.session_id ? "me" : "them",
                 text: m.message,
-                        createdAt: m.created_at.endsWith("Z") ? m.created_at : m.created_at + "Z",
+                createdAt: m.created_at.endsWith("Z") ? m.created_at : m.created_at + "Z",
+                reply_of: m.reply_of ? String(m.reply_of) : null,
+                edited: m.edited,
             }));
             setHistoryMessages(mapped);
             setHistoryLoading(false);
@@ -774,6 +812,8 @@ function Chat() {
                         sender: m.sender_id === session?.session_id ? "me" : "them",
                         text: m.message,
                         createdAt: m.created_at.endsWith("Z") ? m.created_at : m.created_at + "Z",
+                        reply_of: m.reply_of ? String(m.reply_of) : null,
+                        edited: m.edited,
                     }));
                     setHistoryMessages(mapped);
 
@@ -934,6 +974,8 @@ function Chat() {
                     sender: m.sender_id === currentSessionId ? "me" : "them",
                     text: m.message,
                     createdAt: m.created_at.endsWith("Z") ? m.created_at : m.created_at + "Z",
+                    reply_of: m.reply_of ? String(m.reply_of) : null,
+                    edited: m.edited,
                 }));
                 setMessages(mapped);
             }
@@ -1008,6 +1050,13 @@ function Chat() {
                     return;
                 }
 
+                if (payload.type === "message_edited") {
+                    const idToEdit = String(payload.message_id);
+                    setHistoryMessages(prev => prev.map(m => String(m.id) === idToEdit ? { ...m, text: payload.message, message: payload.message, edited: true } : m));
+                    setMessages(prev => prev.map(m => String(m.id) === idToEdit ? { ...m, text: payload.message, message: payload.message, edited: true } : m));
+                    return;
+                }
+
                 if (payload.type === "chat_message") {
                     const incomingConvId = payload.conversation_id;
 
@@ -1020,6 +1069,7 @@ function Chat() {
                                 idPrefix: "received-history",
                                 sender: "them",
                                 text: payload.text,
+                                reply_of: payload.reply_of,
                             }),
                         ]);
                         // Also scroll the history pane
@@ -1048,6 +1098,7 @@ function Chat() {
                                 idPrefix: "received",
                                 sender: "them",
                                 text: payload.text,
+                                reply_of: payload.reply_of,
                             }),
                         ]);
                         
@@ -1061,6 +1112,12 @@ function Chat() {
                             }).catch(console.error);
                         }
                     }
+                    return;
+                }
+
+                if (payload.type === "message_ack") {
+                    setMessages(prev => prev.map(m => m.id === payload.local_id ? { ...m, id: String(payload.id) } : m));
+                    setHistoryMessages(prev => prev.map(m => m.id === payload.local_id ? { ...m, id: String(payload.id) } : m));
                     return;
                 }
 
@@ -1450,6 +1507,8 @@ function Chat() {
                     sender: m.sender_id === session?.session_id ? "me" : "them",
                     text: m.message,
                     createdAt: m.created_at.endsWith("Z") ? m.created_at : m.created_at + "Z",
+                    reply_of: m.reply_of ? String(m.reply_of) : null,
+                    edited: m.edited,
                 }));
                 setHistoryMessages(mapped);
             }
@@ -1505,19 +1564,41 @@ function Chat() {
         const trimmed = historyMessage.trim();
         if (!trimmed || !activeConv) return;
 
-        setHistoryMessage(""); setReplyingTo(null);
+        const currentEditing = editingMessage;
+        const currentReplyOf = replyingTo?.id;
+        setHistoryMessage(""); setReplyingTo(null); setEditingMessage(null);
 
         // Reset textarea height
         if (historyInputRef.current) {
             historyInputRef.current.style.height = "auto";
         }
 
+        if (currentEditing) {
+            // Optimistically update
+            setHistoryMessages(prev => prev.map(m => String(m.id) === String(currentEditing.id) ? { ...m, text: trimmed, message: trimmed, edited: true } : m));
+            setMessages(prev => prev.map(m => String(m.id) === String(currentEditing.id) ? { ...m, text: trimmed, message: trimmed, edited: true } : m));
+
+            try {
+                await fetch(`${BACKEND_URL}/api/messages/edit/${currentEditing.id}`, {
+                    method: "POST",
+                    credentials: "include",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ message: trimmed }),
+                });
+            } catch (err) {
+                console.error("Failed to edit message:", err);
+            }
+            return;
+        }
+
         // Optimistically add to UI
+        const localId = `sent-${Date.now()}`;
         const optimistic = {
-            id: `optimistic-${Date.now()}`,
+            id: localId,
             sender: "me",
             text: trimmed,
             createdAt: new Date().toISOString(),
+            reply_of: currentReplyOf ? String(currentReplyOf) : null,
         };
         setHistoryMessages(prev => [...prev, optimistic]);
 
@@ -1531,15 +1612,21 @@ function Chat() {
         });
 
         try {
-            await fetch(`${BACKEND_URL}/api/messages/send`, {
+            const res = await fetch(`${BACKEND_URL}/api/messages/send`, {
                 method: "POST",
                 credentials: "include",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
                     conversation_id: activeConv.conversation_id,
                     message: trimmed,
+                    reply_of: currentReplyOf ? Number(currentReplyOf) : null,
                 }),
             });
+            const data = await res.json();
+            if (data.id) {
+                setHistoryMessages(prev => prev.map(m => m.id === localId ? { ...m, id: String(data.id) } : m));
+                setMessages(prev => prev.map(m => m.id === localId ? { ...m, id: String(data.id) } : m));
+            }
         } catch (err) {
             console.error("Failed to send message:", err);
         }
@@ -1606,45 +1693,62 @@ function Chat() {
     // =================================================
 
     function sendMessage(event) {
-
         event.preventDefault();
 
-
-        const trimmed =
-            message.trim();
-
-
+        const trimmed = message.trim();
         if (!trimmed) {
             return;
         }
 
+        const currentEditing = editingMessage;
+        const currentReplyOf = replyingTo?.id;
+        setMessage(""); setReplyingTo(null); setEditingMessage(null);
 
-        setMessages(
-            (current) => [
-                ...current,
-
-                createChatMessage({
-                    idPrefix: "sent",
-                    sender: "me",
-                    text: trimmed,
-                }),
-            ]
-        );
-
-
-        setMessage(""); setReplyingTo(null);
-        
         if (messageInputRef.current) {
             messageInputRef.current.style.height = "auto";
         }
 
+        if (currentEditing) {
+            // Optimistically update
+            setHistoryMessages(prev => prev.map(m => String(m.id) === String(currentEditing.id) ? { ...m, text: trimmed, message: trimmed, edited: true } : m));
+            setMessages(prev => prev.map(m => String(m.id) === String(currentEditing.id) ? { ...m, text: trimmed, message: trimmed, edited: true } : m));
+
+            try {
+                fetch(`${BACKEND_URL}/api/messages/edit/${currentEditing.id}`, {
+                    method: "POST",
+                    credentials: "include",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ message: trimmed }),
+                });
+            } catch (err) {
+                console.error("Failed to edit message:", err);
+            }
+            return;
+        }
+
+        const localId = `sent-${Date.now()}`;
+        setMessages(
+            (current) => [
+                ...current,
+                createChatMessage({
+                    id: localId,
+                    sender: "me",
+                    text: trimmed,
+                    reply_of: currentReplyOf ? String(currentReplyOf) : null,
+                }),
+            ]
+        );
 
         if (!ws.websocketRef.current || ws.websocketRef.current.readyState !== WebSocket.OPEN) {
             return;
         }
 
-
-        ws.sendJson({ type: "chat_message", text: trimmed });
+        ws.sendJson({ 
+            type: "chat_message", 
+            text: trimmed, 
+            reply_of: currentReplyOf ? Number(currentReplyOf) : null,
+            local_id: localId
+        });
 
 
         window.requestAnimationFrame(
@@ -2011,9 +2115,21 @@ function Chat() {
                                 onTouchEnd={handleTouchEnd}
                                 onTouchMove={handleTouchMove}
                             >
+                                {item.reply_of && (() => {
+                                    const original = historyMessages.find(m => m.id === item.reply_of) || messages.find(m => m.id === item.reply_of);
+                                    if (!original) return null;
+                                    const senderName = original.sender === "me" ? "You" : (partnerName || match?.name || "Them");
+                                    return (
+                                        <div className="reply-preview-in-bubble">
+                                            <div className="reply-preview-name">{senderName}</div>
+                                            <div className="reply-preview-text">{original.text}</div>
+                                        </div>
+                                    );
+                                })()}
                                 {formatMessageText(item.text)}
                                 <small>
                                     <time dateTime={item.createdAt}>
+                                        {item.edited && <span className="opacity-70 mr-1">(edited)</span>}
                                         {messageTimeFormatter.format(new Date(item.createdAt))}
                                     </time>
                                 </small>
@@ -2060,6 +2176,7 @@ function Chat() {
                 <form className="composer" onSubmit={sendHistoryMessage}>
                     <div className="composer-row">
                         <div className="composer-inner">
+                            <EditPreview editingMessage={editingMessage} setEditingMessage={setEditingMessage} />
                             <ReplyPreview replyingTo={replyingTo} setReplyingTo={setReplyingTo} partnerName={partnerName} />
                             <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'flex-end', gap: '8px', width: '100%' }}>
                                 <textarea
@@ -2426,6 +2543,18 @@ function Chat() {
                                 onTouchMove={handleTouchMove}
                             >
 
+                                {item.reply_of && (() => {
+                                    const original = historyMessages.find(m => m.id === item.reply_of) || messages.find(m => m.id === item.reply_of);
+                                    if (!original) return null;
+                                    const senderName = original.sender === "me" ? "You" : (match?.name || partnerName || "Them");
+                                    return (
+                                        <div className="reply-preview-in-bubble">
+                                            <div className="reply-preview-name">{senderName}</div>
+                                            <div className="reply-preview-text">{original.text}</div>
+                                        </div>
+                                    );
+                                })()}
+
                                 {formatMessageText(item.text)}
 
 
@@ -2436,6 +2565,7 @@ function Chat() {
                                             item.createdAt
                                         }
                                     >
+                                        {item.edited && <span className="opacity-70 mr-1">(edited)</span>}
                                         {
                                             messageTimeFormatter.format(
                                                 new Date(
@@ -2558,6 +2688,7 @@ function Chat() {
 
 
                     <div className="composer-inner">
+                        <EditPreview editingMessage={editingMessage} setEditingMessage={setEditingMessage} />
                         <ReplyPreview replyingTo={replyingTo} setReplyingTo={setReplyingTo} partnerName={match?.name} />
                         <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'flex-end', gap: '8px', width: '100%' }}>
                             <textarea

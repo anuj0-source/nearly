@@ -5,3 +5,4 @@ app/.env
 __pycache__/
 *.py[cod]
 app/models/__pycache__
+app/alembic

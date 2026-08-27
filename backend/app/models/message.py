@@ -33,9 +33,18 @@ class Message(Base):
         Text
     )
 
+    reply_of : Mapped[int | None] = mapped_column(
+        nullable=True
+    )
+
     created_at : Mapped[datetime] = mapped_column(
         DateTime,
         default=datetime.utcnow
+    )
+
+    edited : Mapped[bool] = mapped_column(
+        Boolean,
+        default=False
     )
 
     is_read : Mapped[bool] = mapped_column(

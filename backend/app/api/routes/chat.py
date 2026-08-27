@@ -308,10 +308,13 @@ async def chat_websocket(
                             conversation_id=conv_id,
                             sender_id=resolved_session_id,
                             receiver_id=matched_user,
-                            message=text_content
+                            message=text_content,
+                            reply_of=payload.get("reply_of")
                         )
                         db.add(db_msg)
                         db.commit()
+                        db.refresh(db_msg)
+                        payload["id"] = db_msg.id
 
                 # Add sender details to payload for frontend notifications
                 payload["sender_id"] = resolved_session_id
@@ -325,6 +328,17 @@ async def chat_websocket(
                     matched_user,
                     payload
             )
+
+            # Send ack to sender so they know the real DB ID
+            if payload.get("local_id") and payload.get("id"):
+                await manager.send_json(
+                    resolved_session_id,
+                    {
+                        "type": "message_ack",
+                        "local_id": payload["local_id"],
+                        "id": payload["id"]
+                    }
+                )
             
     except WebSocketDisconnect:
         await manager.disconnect(resolved_session_id, websocket)

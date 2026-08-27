@@ -8,7 +8,7 @@ from models.message import Message
 from models.conversation import Conversation
 from database import get_db
 from models.notification import Notification
-from datetime import datetime
+from datetime import datetime, timedelta
 
 router = APIRouter(
     prefix="/api/messages"
@@ -16,6 +16,10 @@ router = APIRouter(
 
 class SendMessageBody(BaseModel):
     conversation_id: str
+    message: str
+    reply_of: int | None = None
+
+class EditMessageBody(BaseModel):
     message: str
 
 @router.get("/conversations")
@@ -139,13 +143,7 @@ async def mark_messages_as_read(
     return {"status": "ok", "marked_count": len(messages)}
 
 @router.get("/partner-status/{partner_session_id}")
-async def get_partner_status(
-    partner_session_id: str,
-    session_id: str | None = Cookie(default=None),
-):
-    if not session_id:
-        raise HTTPException(status_code=401, detail="No session found")
-
+async def get_partner_status(partner_session_id: str):
     from api.routes.chat import manager as ws_manager
     is_online = partner_session_id in ws_manager.connections
 
@@ -296,7 +294,9 @@ async def send_message(
         sender_id=session_id,
         receiver_id=partner_id,
         message=body.message,
+        reply_of=body.reply_of,
     )
+
     db.add(db_msg)
     db.commit()
     db.refresh(db_msg)
@@ -312,6 +312,7 @@ async def send_message(
         "sender_id": session_id,
         "sender_name": user.name,
         "sender_avatar": user.avatar,
+        "reply_of": db_msg.reply_of,
     }
     await manager.send_json(partner_id, payload)
 
@@ -338,6 +339,7 @@ async def send_message(
         "receiver_id": db_msg.receiver_id,
         "message": db_msg.message,
         "created_at": db_msg.created_at,
+        "reply_of": db_msg.reply_of,
     }
 
 @router.delete("/delete/{message_id}")
@@ -399,4 +401,72 @@ async def delete_message(
     
     return{
         "message":"message deleted"
-    }
+    }
+
+@router.post("/edit/{message_id}")
+async def edit_message(
+    message_id: int,
+    body: EditMessageBody,
+    session_id : str | None = Cookie(default=None),
+    db : Session = Depends(get_db)
+):
+
+    if not session_id:
+        raise HTTPException(
+            status_code=404,
+            detail="No session found"
+        )
+
+    user = db.scalar(
+        select(AnonymousSession)
+        .where(AnonymousSession.session_id == session_id)
+    )
+
+    if not user:
+        raise HTTPException(
+            status_code=404,
+            detail="user not found"
+        )
+
+    message = db.scalar(
+        select(Message)
+        .where(Message.id == message_id)
+    )
+
+    if not message:
+        raise HTTPException(
+            status_code=404,
+            detail="message not found"
+        )
+        
+    if message.sender_id != session_id:
+        raise HTTPException(
+            status_code=403,
+            detail="You can only edit your own messages"
+        )
+
+    if datetime.utcnow() - message.created_at > timedelta(hours=2):
+        raise HTTPException(
+            status_code=403,
+            detail="You can only edit your own messages within 2 hours"
+        )
+        
+    message.message = body.message
+    message.edited = True
+    db.commit()
+    db.refresh(message)
+    
+    from api.routes.chat import manager as ws_manager
+    await ws_manager.send_json(
+        message.receiver_id,
+        {
+            "type": "message_edited",
+            "message_id": message_id,
+            "conversation_id": message.conversation_id,
+            "message": message.message
+        }
+    )
+    
+    return{
+        "message":"message edited"
+    }
