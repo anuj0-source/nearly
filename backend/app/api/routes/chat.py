@@ -340,6 +340,9 @@ async def chat_websocket(
                     }
                 )
             
+            # Ensure no open transactions remain while waiting for next message
+            db.commit()
+            
     except WebSocketDisconnect:
         await manager.disconnect(resolved_session_id, websocket)
 

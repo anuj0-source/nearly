@@ -75,6 +75,11 @@ def run_migrations_online() -> None:
     )
 
     with connectable.connect() as connection:
+        # Set a lock timeout so migrations fail fast instead of hanging 
+        # when old instances hold table locks during zero-downtime deploys.
+        from sqlalchemy import text
+        connection.execute(text("SET lock_timeout = '10s'"))
+        
         context.configure(
             connection=connection, target_metadata=target_metadata
         )
