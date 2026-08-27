@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useWebSocket } from "../contexts/WebSocketContext";
 import {
@@ -122,6 +122,31 @@ const messageTimeFormatter = new Intl.DateTimeFormat(undefined, {
     hour: "numeric",
     minute: "2-digit",
 });
+
+const isSameDay = (date1, date2) => {
+    if (!date1 || !date2) return false;
+    return date1.getFullYear() === date2.getFullYear() &&
+           date1.getMonth() === date2.getMonth() &&
+           date1.getDate() === date2.getDate();
+};
+
+const getMessageDateLabel = (dateString) => {
+    if (!dateString) return "";
+    const date = new Date(dateString);
+    const today = new Date();
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+
+    if (isSameDay(date, today)) {
+        return "Today";
+    } else if (isSameDay(date, yesterday)) {
+        return "Yesterday";
+    } else if (today.getTime() - date.getTime() < 7 * 24 * 60 * 60 * 1000) {
+        return date.toLocaleDateString(undefined, { weekday: 'long' });
+    } else {
+        return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: date.getFullYear() !== today.getFullYear() ? 'numeric' : undefined });
+    }
+};
 
 
 // =================================================
@@ -1238,7 +1263,7 @@ function Chat() {
             window.visualViewport;
 
 
-        const syncViewportHeight = () => {
+        const syncViewportHeightOnly = () => {
 
             const height =
                 viewport?.height ??
@@ -1249,7 +1274,10 @@ function Chat() {
                 "--chat-viewport-height",
                 `${Math.round(height)}px`
             );
+        };
 
+        const syncViewportHeightAndScroll = () => {
+            syncViewportHeightOnly();
 
             // Scroll the active pane to the bottom after the layout reflows.
             window.requestAnimationFrame(() => {
@@ -1267,24 +1295,24 @@ function Chat() {
         );
 
 
-        syncViewportHeight();
+        syncViewportHeightAndScroll();
 
 
         window.addEventListener(
             "resize",
-            syncViewportHeight
+            syncViewportHeightAndScroll
         );
 
 
         viewport?.addEventListener(
             "resize",
-            syncViewportHeight
+            syncViewportHeightAndScroll
         );
 
 
         viewport?.addEventListener(
             "scroll",
-            syncViewportHeight
+            syncViewportHeightOnly
         );
 
 
@@ -1302,19 +1330,19 @@ function Chat() {
 
             window.removeEventListener(
                 "resize",
-                syncViewportHeight
+                syncViewportHeightAndScroll
             );
 
 
             viewport?.removeEventListener(
                 "resize",
-                syncViewportHeight
+                syncViewportHeightAndScroll
             );
 
 
             viewport?.removeEventListener(
                 "scroll",
-                syncViewportHeight
+                syncViewportHeightOnly
             );
         };
 
@@ -1791,6 +1819,10 @@ function Chat() {
 
     const renderContextMenu = () => {
         if (contextMenu === null) return null;
+        
+        const msg = historyMessages.find(m => String(m.id) === String(contextMenu.messageId)) || messages.find(m => String(m.id) === String(contextMenu.messageId));
+        const isEditable = msg && (new Date().getTime() - new Date(msg.createdAt).getTime()) <= 2 * 60 * 60 * 1000;
+
         return createPortal(
             <div 
                 ref={contextMenuRef}
@@ -1811,13 +1843,15 @@ function Chat() {
                 </button>
                 {contextMenu.isMine && (
                     <>
-                        <button 
-                            onClick={() => handleEditMessage(contextMenu.messageId)}
-                            className="context-btn"
-                        >
-                            <Edit2 size={16} />
-                            Edit
-                        </button>
+                        {isEditable && (
+                            <button 
+                                onClick={() => handleEditMessage(contextMenu.messageId)}
+                                className="context-btn"
+                            >
+                                <Edit2 size={16} />
+                                Edit
+                            </button>
+                        )}
                         <button 
                             onClick={() => handleDeleteMessage(contextMenu.messageId)}
                             className="context-btn delete-btn"
@@ -2071,9 +2105,17 @@ function Chat() {
                         </div>
                     )}
 
-                    {historyMessages.map(item => (
+                    {historyMessages.map((item, index) => {
+                        const showDateDivider = index === 0 || !isSameDay(new Date(item.createdAt), new Date(historyMessages[index - 1].createdAt));
+
+                        return (
+                        <React.Fragment key={item.id}>
+                            {showDateDivider && (
+                                <div className="date-divider">
+                                    <span>{getMessageDateLabel(item.createdAt)}</span>
+                                </div>
+                            )}
                         <div 
-                            key={item.id} 
                             className={`row ${item.sender === "me" ? "sent" : ""} ${contextMenu?.messageId === item.id ? "active-context-message" : ""} ${item.isDeleting ? "message-deleting" : ""}`}
                         >
 
@@ -2147,7 +2189,9 @@ function Chat() {
                             )}
 
                         </div>
-                    ))}
+                        </React.Fragment>
+                        );
+                    })}
 
                     {historyIsTyping && (
                         <div className="row">
@@ -2499,10 +2543,17 @@ function Chat() {
 
 
                 {messages.map(
-                    (item) => (
-
+                    (item, index) => {
+                        const showDateDivider = index === 0 || !isSameDay(new Date(item.createdAt), new Date(messages[index - 1].createdAt));
+                        
+                        return (
+                        <React.Fragment key={item.id}>
+                            {showDateDivider && (
+                                <div className="date-divider">
+                                    <span>{getMessageDateLabel(item.createdAt)}</span>
+                                </div>
+                            )}
                         <div
-                            key={item.id}
                             className={`row ${
                                 item.sender === "me"
                                     ? "sent"
@@ -2591,8 +2642,9 @@ function Chat() {
                             )}
 
                         </div>
-
-                    )
+                        </React.Fragment>
+                        );
+                    }
                 )}
 
 

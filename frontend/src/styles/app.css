@@ -5411,3 +5411,33 @@ a { color: inherit; text-decoration: none; }
     white-space: normal;
     line-height: 1.4;
 }
+
+/* =============================================================
+   DATE DIVIDER
+   ============================================================= */
+.date-divider {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 24px 0 16px;
+    width: 100%;
+}
+
+.date-divider span {
+    background: var(--surface);
+    color: var(--muted);
+    font-size: 11px;
+    font-weight: 650;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    padding: 6px 14px;
+    border-radius: 20px;
+    font-family: var(--sans);
+    box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+}
+
+.theme-dark .date-divider span {
+    background: var(--surface-2);
+    color: var(--faint);
+}
+
