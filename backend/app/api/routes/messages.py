@@ -24,6 +24,8 @@ class EditMessageBody(BaseModel):
 
 @router.get("/conversations")
 async def get_conversations(
+    skip: int = 0,
+    limit: int = 7,
     session_id: str | None = Cookie(default=None),
     db: Session = Depends(get_db)
 ):
@@ -44,13 +46,22 @@ async def get_conversations(
             detail="User session not found"
         )
 
+    last_message_subq = (
+        select(func.max(Message.created_at))
+        .where(Message.conversation_id == Conversation.conversation_id)
+        .correlate(Conversation)
+        .scalar_subquery()
+    )
+
     conversations = db.scalars(
         select(Conversation)
         .where(
             (Conversation.user1_session_id == session_id) |
             (Conversation.user2_session_id == session_id)
         )
-        .order_by(Conversation.created_at.desc())
+        .order_by(func.coalesce(last_message_subq, Conversation.created_at).desc())
+        .offset(skip)
+        .limit(limit)
     ).all()
 
     from api.routes.chat import manager as ws_manager
@@ -97,7 +108,7 @@ async def get_conversations(
             "unread_count": unread_count or 0,
         })
 
-    # Sort so the most recently active conversations appear at the top
+    # Keep sorting in memory just in case, but it should already be sorted from DB
     result.sort(key=lambda x: x["last_message_time"] or x["created_at"], reverse=True)
 
     return result
