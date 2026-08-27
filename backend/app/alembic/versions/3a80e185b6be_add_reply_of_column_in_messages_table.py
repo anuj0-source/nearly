@@ -20,7 +20,16 @@ depends_on: Union[str, Sequence[str], None] = None
 
 def upgrade() -> None:
     """Upgrade schema."""
-    op.add_column('messages', sa.Column('reply_of', sa.Integer(), nullable=True))
+    conn = op.get_bind()
+    inspector = sa.inspect(conn)
+    has_column = False
+    for col in inspector.get_columns('messages'):
+        if col['name'] == 'reply_of':
+            has_column = True
+            break
+            
+    if not has_column:
+        op.add_column('messages', sa.Column('reply_of', sa.Integer(), nullable=True))
     op.alter_column('messages', 'is_read',
                existing_type=sa.BOOLEAN(),
                nullable=False,

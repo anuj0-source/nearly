@@ -20,9 +20,18 @@ depends_on: Union[str, Sequence[str], None] = None
 
 def upgrade() -> None:
     """Upgrade schema."""
-    op.add_column('messages', sa.Column('edited', sa.Boolean(), nullable=True))
-    op.execute('UPDATE messages SET edited = false')
-    op.alter_column('messages', 'edited', nullable=False)
+    conn = op.get_bind()
+    inspector = sa.inspect(conn)
+    has_column = False
+    for col in inspector.get_columns('messages'):
+        if col['name'] == 'edited':
+            has_column = True
+            break
+            
+    if not has_column:
+        op.add_column('messages', sa.Column('edited', sa.Boolean(), nullable=True))
+        op.execute('UPDATE messages SET edited = false')
+        op.alter_column('messages', 'edited', nullable=False)
 
 
 def downgrade() -> None:

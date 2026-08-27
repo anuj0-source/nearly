@@ -21,15 +21,24 @@ depends_on: Union[str, Sequence[str], None] = None
 def upgrade() -> None:
     """Upgrade schema."""
 
-    op.add_column(
-        'anonymous_sessions',
-        sa.Column(
-            'is_nearby_enabled',
-            sa.Boolean(),
-            nullable=False,
-            server_default=sa.text('false')
+    conn = op.get_bind()
+    inspector = sa.inspect(conn)
+    has_column = False
+    for col in inspector.get_columns('anonymous_sessions'):
+        if col['name'] == 'is_nearby_enabled':
+            has_column = True
+            break
+            
+    if not has_column:
+        op.add_column(
+            'anonymous_sessions',
+            sa.Column(
+                'is_nearby_enabled',
+                sa.Boolean(),
+                nullable=False,
+                server_default=sa.text('false')
+            )
         )
-    )
 
     op.alter_column(
         'anonymous_sessions',
