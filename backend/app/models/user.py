@@ -119,9 +119,10 @@ class AnonymousSession(Base):
         secondaryjoin=id == friend_requests.c.sender_id
     )
 
-    status: Mapped[str] = mapped_column(
+    status: Mapped[str | None] = mapped_column(
         String(50),
-        default="active"
+        default="active",
+        nullable=True
     )
 
     is_nearby_enabled: Mapped[bool] = mapped_column(

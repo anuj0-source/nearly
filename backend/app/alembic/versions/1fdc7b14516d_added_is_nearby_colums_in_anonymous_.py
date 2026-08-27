@@ -40,13 +40,15 @@ def upgrade() -> None:
             )
         )
 
-    op.alter_column(
-        'anonymous_sessions',
-        'status',
-        existing_type=sa.VARCHAR(length=50),
-        nullable=False,
-        existing_server_default=sa.text("'active'::character varying")
-    )
+    # The following alter_column is causing lock timeout issues during deployment
+    # and since it's an existing table, we can skip enforcing NOT NULL strictly here
+    # op.alter_column(
+    #     'anonymous_sessions',
+    #     'status',
+    #     existing_type=sa.VARCHAR(length=50),
+    #     nullable=False,
+    #     existing_server_default=sa.text("'active'::character varying")
+    # )
 
 def downgrade() -> None:
     """Downgrade schema."""
