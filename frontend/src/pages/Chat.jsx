@@ -155,9 +155,11 @@ const getMessageDateLabel = (dateString) => {
 
 function createChatMessage({ id, idPrefix, sender, text, reply_of }) {
     const createdAt = new Date();
+    const finalId = id !== undefined ? String(id) : `${idPrefix}-${createdAt.getTime()}`;
 
     return {
-        id: id !== undefined ? String(id) : `${idPrefix}-${createdAt.getTime()}`,
+        id: finalId,
+        local_id: finalId,
         sender,
         text,
         createdAt: createdAt.toISOString(),
@@ -1697,6 +1699,7 @@ function Chat() {
         const localId = `sent-${Date.now()}`;
         const optimistic = {
             id: localId,
+            local_id: localId,
             sender: "me",
             text: trimmed,
             createdAt: new Date().toISOString(),
@@ -2183,7 +2186,7 @@ function Chat() {
                         const showDateDivider = index === 0 || !isSameDay(new Date(item.createdAt), new Date(historyMessages[index - 1].createdAt));
 
                         return (
-                        <React.Fragment key={item.id}>
+                        <React.Fragment key={item.local_id || item.id}>
                             {showDateDivider && (
                                 <div className="date-divider">
                                     <span>{getMessageDateLabel(item.createdAt)}</span>
@@ -2225,7 +2228,7 @@ function Chat() {
                             </div>
 
                             <div 
-                                className={`bubble ${isEmojiOnly(item.text) ? 'emoji-only' : ''}`}
+                                className={`bubble ${isEmojiOnly(item.text) ? 'emoji-only' : ''} ${String(item.id).startsWith('sent-') ? 'sending' : ''}`}
                                 onContextMenu={(e) => handleContextMenu(e, item.id, item.sender === "me")}
                                 onTouchStart={(e) => handleTouchStart(e, item.id, item.sender === "me")}
                                 onTouchEnd={handleTouchEnd}
@@ -2621,7 +2624,7 @@ function Chat() {
                         const showDateDivider = index === 0 || !isSameDay(new Date(item.createdAt), new Date(messages[index - 1].createdAt));
                         
                         return (
-                        <React.Fragment key={item.id}>
+                        <React.Fragment key={item.local_id || item.id}>
                             {showDateDivider && (
                                 <div className="date-divider">
                                     <span>{getMessageDateLabel(item.createdAt)}</span>
@@ -2661,7 +2664,7 @@ function Chat() {
                             </div>
 
                             <div 
-                                className={`bubble ${isEmojiOnly(item.text) ? 'emoji-only' : ''}`}
+                                className={`bubble ${isEmojiOnly(item.text) ? 'emoji-only' : ''} ${String(item.id).startsWith('sent-') ? 'sending' : ''}`}
                                 onContextMenu={(e) => handleContextMenu(e, item.id, item.sender === "me")}
                                 onTouchStart={(e) => handleTouchStart(e, item.id, item.sender === "me")}
                                 onTouchEnd={handleTouchEnd}

@@ -84,7 +84,14 @@ export default function HeaderIcons({ session }) {
                     fetchNotifications();
                 } else if (data.type === "chat_message") {
                     fetchConversations();
-                    fetchNotifications();
+                    
+                    const isChatRoute = window.location.pathname === "/chat";
+                    const currentPartner = new URLSearchParams(window.location.search).get("partner");
+                    const isActiveChat = isChatRoute && (currentPartner === data.sender_id || window.activeLiveMatchSessionId === data.sender_id);
+                    
+                    if (!isActiveChat) {
+                        fetchNotifications();
+                    }
                 }
             } catch (e) {
                 console.error("Error parsing websocket message in HeaderIcons", e);
@@ -226,18 +233,44 @@ export default function HeaderIcons({ session }) {
         }
     }
 
-    async function fetchConversations() {
+    const [conversationsSkip, setConversationsSkip] = useState(0);
+    const [hasMoreConversations, setHasMoreConversations] = useState(true);
+
+    async function fetchConversations(skip = 0, append = false) {
         try {
-            const response = await fetch(`${BACKEND_URL}/api/messages/conversations`, {
+            const response = await fetch(`${BACKEND_URL}/api/messages/conversations?skip=${skip}&limit=7`, {
                 credentials: "include",
             });
             if (response.ok) {
                 const data = await response.json();
-                setConversations(data);
+                if (data.length < 7) {
+                    setHasMoreConversations(false);
+                } else {
+                    setHasMoreConversations(true);
+                }
+                
+                if (append) {
+                    setConversations(prev => {
+                        const existingIds = new Set(prev.map(c => c.conversation_id));
+                        const newConvs = data.filter(c => !existingIds.has(c.conversation_id));
+                        return [...prev, ...newConvs];
+                    });
+                } else {
+                    setConversations(data);
+                }
+                setConversationsSkip(skip);
             }
         } catch (error) {
             console.error("Error fetching conversations:", error);
         }
+    }
+
+    async function loadMoreConversations() {
+        if (conversationsLoading || !hasMoreConversations) return;
+        setConversationsLoading(true);
+        const nextSkip = conversationsSkip + 7;
+        await fetchConversations(nextSkip, true);
+        setConversationsLoading(false);
     }
 
     async function toggleConversations() {
@@ -249,9 +282,18 @@ export default function HeaderIcons({ session }) {
         setShowRequests(false);
         setShowNotifications(false);
         setConversationsLoading(true);
-        await fetchConversations();
+        setConversationsSkip(0);
+        setHasMoreConversations(true);
+        await fetchConversations(0, false);
         setConversationsLoading(false);
     }
+
+    const handleConversationsScroll = (e) => {
+        const { scrollTop, scrollHeight, clientHeight } = e.target;
+        if (scrollTop + clientHeight >= scrollHeight - 10) {
+            loadMoreConversations();
+        }
+    };
 
     async function openConversation(conv) {
         setShowConversations(false);
@@ -391,8 +433,8 @@ export default function HeaderIcons({ session }) {
                             </div>
                         </div>
 
-                        <div className="conv-list">
-                            {conversationsLoading ? (
+                        <div className="conv-list" onScroll={handleConversationsScroll}>
+                            {conversationsLoading && !hasMoreConversations ? (
                                 Array.from({ length: 3 }).map((_, i) => (
                                     <div key={i} className="conv-item" style={{ pointerEvents: "none" }}>
                                         <div className="skeleton-list-item skeleton-avatar-md" />
@@ -402,7 +444,7 @@ export default function HeaderIcons({ session }) {
                                         </div>
                                     </div>
                                 ))
-                            ) : conversations.length === 0 ? (
+                            ) : conversations.length === 0 && !conversationsLoading ? (
                                 <div className="conv-empty">
                                     <div className="conv-empty-icon">
                                         <MessageCircle size={28} strokeWidth={1.4} />
@@ -477,6 +519,15 @@ export default function HeaderIcons({ session }) {
                                         </div>
                                     );
                                 })
+                            )}
+                            {conversationsLoading && conversations.length > 0 && (
+                                <div className="conv-item" style={{ pointerEvents: "none", opacity: 0.7 }}>
+                                    <div className="skeleton-list-item skeleton-avatar-md" />
+                                    <div className="conv-item-body">
+                                        <div className="skeleton-list-item skeleton-text-md" />
+                                        <div className="skeleton-list-item skeleton-text-sm" style={{ marginTop: 8 }} />
+                                    </div>
+                                </div>
                             )}
                         </div>
                     </div>
