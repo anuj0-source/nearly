@@ -661,6 +661,55 @@ function Chat() {
 
 
     // =================================================
+    // ACTIVE USERS STATE
+    // =================================================
+
+    const [activeUsersCount, setActiveUsersCount] = useState(null);
+
+    useEffect(() => {
+        let isMounted = true;
+
+        const fetchActiveUsers = async () => {
+            try {
+                const res = await fetch(`${BACKEND_URL}/api/session/active-users`);
+                if (res.ok) {
+                    const data = await res.json();
+                    if (isMounted) {
+                        setActiveUsersCount(data.active_users);
+                    }
+                }
+            } catch (err) {
+                console.error("Failed to fetch active users", err);
+            }
+        };
+
+        if (chatState === "setup") {
+            fetchActiveUsers();
+
+            const removeListener = ws?.addMessageListener((event) => {
+                try {
+                    const data = JSON.parse(event.data);
+                    if (data.type === "user_status_update") {
+                        setActiveUsersCount(prev => {
+                            if (prev === null) return prev;
+                            if (data.event === "online") return prev + 1;
+                            if (data.event === "offline") return Math.max(0, prev - 1);
+                            return prev;
+                        });
+                    }
+                } catch (e) {
+                    // ignore
+                }
+            });
+
+            return () => {
+                isMounted = false;
+                if (removeListener) removeListener();
+            };
+        }
+    }, [chatState, ws]);
+
+    // =================================================
     // SESSION STATE
     // =================================================
 
@@ -1242,22 +1291,19 @@ function Chat() {
                 : activeConv.user1_session_id
         );
 
-        async function refreshStatus() {
+        const removeListener = ws.addMessageListener((event) => {
             try {
-                const res = await fetch(
-                    `${BACKEND_URL}/api/messages/partner-status/${partnerSessionId}`,
-                    { credentials: "include" }
-                );
-                if (res.ok) {
-                    const data = await res.json();
-                    setActiveConv(prev => prev ? { ...prev, partner_status: data.status } : prev);
+                const data = JSON.parse(event.data);
+                if (data.type === "user_status_update" && data.session_id === partnerSessionId) {
+                    setActiveConv(prev => prev ? { ...prev, partner_status: data.event === "online" ? "active" : "inactive" } : prev);
                 }
-            } catch { /* ignore */ }
-        }
+            } catch (e) {
+                // ignore
+            }
+        });
 
-        const interval = setInterval(refreshStatus, 5000);
-        return () => clearInterval(interval);
-    }, [chatState, activeConv?.conversation_id]); // eslint-disable-line react-hooks/exhaustive-deps
+        return () => removeListener();
+    }, [chatState, activeConv?.conversation_id, ws]); // eslint-disable-line react-hooks/exhaustive-deps
 
 
     // =================================================
@@ -1960,11 +2006,11 @@ function Chat() {
 
         return (
             <section className="chat-setup">
-                <div style={{ position: "absolute", top: 24, left: 16, zIndex: 10 }}>
-                    <span className="brand-logo-type" style={{ fontSize: 22 }}>Near<span>ly</span></span>
-                </div>
-                <div style={{ position: "absolute", top: 24, right: 24, display: "flex", gap: 12, zIndex: 10 }}>
-                    <HeaderIcons session={session} />
+                <div style={{ position: "absolute", top: 24, left: 16, right: 16, display: "flex", justifyContent: "space-between", alignItems: "center", zIndex: 10 }}>
+                    <span className="brand-logo-type" style={{ fontSize: 22, flexShrink: 0 }}>Near<span>ly</span></span>
+                    <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                        <HeaderIcons session={session} />
+                    </div>
                 </div>
 
                 <div
@@ -2007,9 +2053,18 @@ function Chat() {
                             Who&apos;s out there?
                         </h2>
 
-                        <p>
-                            Someone nearby is also
-                            looking for someone to talk to.
+                        <p className="online-users-subtitle">
+                            {activeUsersCount !== null ? (
+                                <>
+                                    <span style={{ display: 'inline-flex', alignItems: 'center', marginRight: '6px', verticalAlign: 'middle', transform: 'translateY(-1px)' }}>
+                                        <span className="active-users-dot"></span>
+                                    </span>
+                                    <span className="live-users-count">{activeUsersCount} user{activeUsersCount === 1 ? '' : 's'}</span>
+                                    <span> {activeUsersCount === 1 ? 'is' : 'are'} also looking for someone to talk to.</span>
+                                </>
+                            ) : (
+                                "Someone nearby is also looking for someone to talk to."
+                            )}
                         </p>
 
                     </div>

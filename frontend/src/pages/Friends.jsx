@@ -2,11 +2,13 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { MessageCircle, UserMinus, Loader } from "lucide-react";
 import AnonymousAvatar from "../components/AnonymousAvatar";
+import { useWebSocket } from "../contexts/WebSocketContext";
 
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL ?? "http://localhost:8000";
 
 function Friends() {
     const navigate = useNavigate();
+    const { addMessageListener } = useWebSocket();
     const [friends, setFriends] = useState([]);
     const [loadingFriends, setLoadingFriends] = useState(true);
     const [loadingChat, setLoadingChat] = useState(null); // session_id of friend being opened
@@ -33,11 +35,45 @@ function Friends() {
         
         // Fetch immediately
         fetchFriends();
-        
-        // Poll every 5 seconds
-        const intervalId = setInterval(fetchFriends, 5000);
-        return () => clearInterval(intervalId);
     }, []);
+
+    // Listen for WebSocket events for live updates
+    useEffect(() => {
+        if (!addMessageListener) return;
+
+        const handleMessage = (event) => {
+            try {
+                const data = JSON.parse(event.data);
+                
+                // Update friend's online/offline status
+                if (data.type === "user_status_update") {
+                    setFriends(prev => prev.map(f => 
+                        f.session_id === data.session_id 
+                            ? { ...f, status: data.event === "online" ? "active" : "inactive" } 
+                            : f
+                    ));
+                }
+                
+                // If a friend request is accepted or a friend removes you, we should refresh the list
+                if (data.type === "notification") {
+                    if (data.event === "Accepted your friend request" || data.event === "Removed you from friends") {
+                        // Quick refresh to ensure list is perfectly in sync
+                        fetch(`${BACKEND_URL}/api/friend/friends`, {
+                            method: "GET",
+                            credentials: "include"
+                        }).then(res => {
+                            if (res.ok) res.json().then(d => setFriends(d.friends || []));
+                        });
+                    }
+                }
+            } catch (e) {
+                console.error("Error parsing websocket message in Friends", e);
+            }
+        };
+
+        const cleanup = addMessageListener(handleMessage);
+        return cleanup;
+    }, [addMessageListener]);
 
     async function handleRemoveFriend(e, friendId) {
         e.stopPropagation();

@@ -744,6 +744,10 @@ export default function HeaderIcons({ session }) {
                                             senderName = notif.payload.user || "someone";
                                             avatar = notif.payload.avatar;
                                             messageText = `Accepted your friend request`;
+                                        } else if (notif.type === "friend_removed") {
+                                            senderName = notif.payload.user || "someone";
+                                            avatar = notif.payload.avatar;
+                                            messageText = `Removed you from their friends list`;
                                         }
                                     }
 

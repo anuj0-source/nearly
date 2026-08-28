@@ -110,6 +110,10 @@ export default function GlobalNotifications() {
                         title = "Friend Request Accepted";
                         message = `${data.user} accepted your friend request`;
                         toastType = "friend_request_accepted";
+                    } else if (data.event === "Removed you from friends" && data.user) {
+                        title = "Friend Removed";
+                        message = `${data.user} removed you from their friends list`;
+                        toastType = "friend_removed";
                     }
 
                     const toast = {
@@ -126,10 +130,8 @@ export default function GlobalNotifications() {
                     playNotificationSound();
                     setToasts((prev) => [...prev, toast]);
                     
-                    // Keep friend requests alive so they can click accept/reject
-                    if (toastType !== "friend_request") {
-                        setTimeout(() => removeToast(id), 5000);
-                    }
+                    // Auto-dismiss all notifications after 5 seconds
+                    setTimeout(() => removeToast(id), 5000);
                 } 
                 else if (data.type === "chat_message") {
                     // Show toast if user is not on chat page, or if they are on chat but talking to someone else

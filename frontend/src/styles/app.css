@@ -5686,3 +5686,103 @@ a { color: inherit; text-decoration: none; }
     50% { opacity: 0.4; }
     100% { opacity: 0.7; }
 }
+
+/* Active Users Badge */
+.active-users-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 6px 12px;
+    background: var(--surface, rgba(255, 255, 255, 0.05));
+    border: 1px solid var(--line, rgba(255, 255, 255, 0.1));
+    border-radius: 12px;
+    color: var(--muted, #a1a1aa);
+    font-size: 13px;
+    font-weight: 500;
+    letter-spacing: 0.2px;
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    animation: fadeIn 0.5s ease-out;
+}
+
+.active-users-badge strong {
+    color: var(--ink, #fff);
+    font-weight: 600;
+}
+
+.active-users-dot {
+    width: 6px;
+    height: 6px;
+    background: #10b981;
+    border-radius: 50%;
+    position: relative;
+}
+
+.active-users-dot::after {
+    content: '';
+    position: absolute;
+    top: -3px;
+    left: -3px;
+    right: -3px;
+    bottom: -3px;
+    border-radius: 50%;
+    background: #10b981;
+    opacity: 0.4;
+    animation: pingActive 2.5s cubic-bezier(0, 0, 0.2, 1) infinite;
+}
+
+@keyframes pingActive {
+    75%, 100% {
+        transform: scale(2.5);
+        opacity: 0;
+    }
+}
+
+@media (max-width: 480px) {
+    .active-users-badge {
+        padding: 4px 8px;
+        gap: 6px;
+    }
+    .active-users-label {
+        display: none;
+    }
+}
+
+/* Chat Setup Subtitle */
+.chat-setup-title .online-users-subtitle {
+    margin: 12px 0 0;
+    color: var(--muted);
+    font-size: 14.5px;
+    line-height: 1.6;
+    letter-spacing: -0.01em;
+    font-weight: 400;
+}
+
+.online-users-subtitle .live-users-count {
+    font-family: var(--brand, sans-serif);
+    font-size: 16px;
+    font-weight: 600;
+    background: linear-gradient(135deg, var(--accent), var(--accent-2));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    display: inline-block;
+    letter-spacing: -0.02em;
+}
+
+.live-indicator {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    background: rgba(16, 185, 129, 0.1);
+    color: #10b981;
+    font-family: var(--sans, sans-serif);
+    font-size: 10px;
+    font-weight: 700;
+    padding: 2px 6px;
+    border-radius: 4px;
+    letter-spacing: 0.05em;
+    margin-right: 6px;
+    vertical-align: middle;
+    transform: translateY(-1px);
+}

@@ -284,6 +284,32 @@ async def remove_friend(
     db.refresh(user1)
     db.refresh(user2)
 
+    if user2.status=="active":
+        await manager.send_json(
+            friend_id,
+            {
+                "type":"notification",
+                "event":"Removed you from friends",
+                "user":user1.name,
+                "avatar":user1.avatar,
+                "session_id":user1.session_id
+            }
+        )
+
+    notification=Notification(
+        session_id=user2.id,
+        type="friend_removed",
+        payload={
+            "user":user1.name,
+            "avatar":user1.avatar
+        },
+        is_read=False,
+        created_at=datetime.now()
+    )
+    db.add(notification)
+    db.commit()
+    db.refresh(notification)
+
     return {
         "message":"friend removed"
     }

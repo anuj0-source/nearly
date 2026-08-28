@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 import uuid
 import random
 from sqlalchemy import select, func
-
+from api.routes.chat import manager
 from models.user import AnonymousSession
 from database import get_db
 
@@ -185,3 +185,10 @@ async def get_me(response:Response,session_id:str | None = Cookie(default=None),
         "longitude":lon,
         "created_at":user.created_at
         }
+
+@router.get("/active-users")
+async def get_count_active_users():
+    count=len(manager.connections)
+    return {
+        "active_users":count
+    }

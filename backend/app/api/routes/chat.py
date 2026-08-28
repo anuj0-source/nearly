@@ -245,6 +245,16 @@ async def chat_websocket(
     db.commit()
     db.refresh(user1)
 
+    for user in manager.connections:
+                await manager.send_json(
+                    user,
+                    {
+                        "type":"user_status_update",
+                        "event":"online",
+                        "session_id":user1.session_id
+                    }
+                )
+
     conversation_id:str=None
     user2:AnonymousSession | None =None
 
@@ -349,6 +359,16 @@ async def chat_websocket(
         user1.status="inactive"
         db.commit()
         db.refresh(user1)
+
+        for user in manager.connections:
+                await manager.send_json(
+                    user,
+                    {
+                        "type":"user_status_update",
+                        "event":"offline",
+                        "session_id":user1.session_id
+                    }
+                )
 
         # Notify the partner that this user left, then clean up both sides.
         other = matching.pop(resolved_session_id, None)
