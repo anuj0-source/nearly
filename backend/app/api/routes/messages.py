@@ -141,13 +141,12 @@ async def mark_messages_as_read(
             select(Notification)
             .where(
                 (Notification.session_id == user.id) &
-                (Notification.type == "message") &
-                (Notification.is_read == False)
+                (Notification.type == "message")
             )
         ).all()
         for notif in notifications:
             if isinstance(notif.payload, dict) and notif.payload.get("conversation_id") == conversation_id:
-                notif.is_read = True
+                db.delete(notif)
 
     db.commit()
 
@@ -334,6 +333,17 @@ async def send_message(
         "reply_of": db_msg.reply_of,
     }
     await manager.send_json(partner_id, payload)
+
+    notifications=db.scalars(
+        select(Notification)
+        .where(Notification.session_id == partner.id)
+        .where(Notification.type == "message")
+    ).all()
+
+    for notif in notifications:
+        if notif.payload['conversation_id'] == body.conversation_id:
+            db.delete(notif)
+            db.commit()
 
     notification=Notification(
         session_id=partner.id,
