@@ -151,7 +151,7 @@ async def remove_avatar(
     
     seed = random.randint(1, 1000000)
 
-    avatar=f"https://api.dicebear.com/9.x/notionists/svg?seed={seed}&backgroundColor=b6e3f4,c0aede,d1d4f9,ffd5dc,ffdfbf"
+    avatar=f"https://api.dicebear.com/9.x/notionists/svg?seed={seed}&backgroundColor=ff3366,20b2aa,00bfff,9370db,ff7f50,3cb371,1e90ff,ff1493,00fa9a,ffa500,8a2be2,ff4500,adff2f,00ced1"
 
     user.avatar = avatar
     db.commit()
