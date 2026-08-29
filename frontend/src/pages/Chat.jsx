@@ -2643,7 +2643,7 @@ function Chat() {
                                     if (!original) return null;
                                     const senderName = original.sender === "me" ? "You" : (partnerName || match?.name || "Them");
                                     return (
-                                        <div className="reply-preview-in-bubble" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                        <div className="reply-preview-in-bubble">
                                             {original.type === 'image' && (
                                                 <img src={original.text} alt="preview" style={{ height: '40px', width: '40px', borderRadius: '4px', objectFit: 'cover', flexShrink: 0 }} />
                                             )}
@@ -3137,7 +3137,7 @@ function Chat() {
                                     if (!original) return null;
                                     const senderName = original.sender === "me" ? "You" : (match?.name || "Them");
                                     return (
-                                        <div className="reply-preview-in-bubble" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                        <div className="reply-preview-in-bubble">
                                             {original.type === 'image' && (
                                                 <img src={original.text} alt="preview" style={{ height: '40px', width: '40px', borderRadius: '4px', objectFit: 'cover', flexShrink: 0 }} />
                                             )}
