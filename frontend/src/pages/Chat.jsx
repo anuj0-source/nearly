@@ -457,7 +457,7 @@ function Chat() {
                     >
                         {({ zoomIn, zoomOut, resetTransform, ...rest }) => (
                             <React.Fragment>
-                                <TransformComponent>
+                                <TransformComponent wrapperStyle={{ overflow: "visible" }}>
                                     <img 
                                         className="image-modal-content"
                                         src={zoomedImage} 
