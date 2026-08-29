@@ -55,3 +55,9 @@ class Message(Base):
         Boolean,
         default=False
     )
+
+    type :Mapped[str] = mapped_column(
+        String(50),
+        nullable=False,
+        default="text"
+    )

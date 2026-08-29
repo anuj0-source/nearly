@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Cookie, Depends, HTTPException
+from fastapi import APIRouter, Cookie, Depends, HTTPException,UploadFile,File
 from sqlalchemy import select, or_, desc, func
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
@@ -9,6 +9,8 @@ from models.conversation import Conversation
 from database import get_db
 from models.notification import Notification
 from datetime import datetime, timedelta
+from services.cloudinary_service import upload_image,delete_image
+from api.routes.chat import manager as ws_manager
 
 router = APIRouter(
     prefix="/api/messages"
@@ -64,7 +66,6 @@ async def get_conversations(
         .limit(limit)
     ).all()
 
-    from api.routes.chat import manager as ws_manager
     result = []
     for conv in conversations:
         partner_session_id = (
@@ -105,6 +106,7 @@ async def get_conversations(
             "is_friend": partner in user.friends if partner else False,
             "last_message_text": last_message.message if last_message else None,
             "last_message_time": last_message.created_at if last_message else None,
+            "last_message_type": last_message.type if last_message else None,
             "unread_count": unread_count or 0,
         })
 
@@ -154,7 +156,6 @@ async def mark_messages_as_read(
 
 @router.get("/partner-status/{partner_session_id}")
 async def get_partner_status(partner_session_id: str):
-    from api.routes.chat import manager as ws_manager
     is_online = partner_session_id in ws_manager.connections
 
     return {"status": "active" if is_online else "inactive"}
@@ -252,7 +253,6 @@ async def get_partner_conversation_messages(
         .limit(limit)
     ).all()
 
-    from api.routes.chat import manager as ws_manager
     is_online = partner_session_id in ws_manager.connections
 
     return {
@@ -411,6 +411,12 @@ async def delete_message(
             status_code=403,
             detail="You can only delete your own messages"
         )
+
+    if message.type == "image":
+        file_part = message.message.split("nearly/messages/")[-1]
+        file_name = file_part.rsplit(".", 1)[0]
+        public_id = f"nearly/messages/{file_name}"
+        await delete_image(public_id)
         
     receiver_id = message.receiver_id
     conversation_id = message.conversation_id
@@ -418,7 +424,6 @@ async def delete_message(
     db.delete(message)
     db.commit()
     
-    from api.routes.chat import manager as ws_manager
     await ws_manager.send_json(
         receiver_id,
         {
@@ -484,8 +489,7 @@ async def edit_message(
     message.edited = True
     db.commit()
     db.refresh(message)
-    
-    from api.routes.chat import manager as ws_manager
+
     await ws_manager.send_json(
         message.receiver_id,
         {
@@ -498,4 +502,126 @@ async def edit_message(
     
     return{
         "message":"message edited"
+    }
+
+@router.post("/send-image")
+async def send_image(
+    conversation_id: str,
+    local_id: str | None = None,
+    image:UploadFile = File(...),
+    session_id : str | None = Cookie(default=None),
+    db : Session = Depends(get_db)
+):
+    
+    if not session_id:
+        raise HTTPException(
+            status_code=404,
+            detail="No session found"
+        )
+
+    user = db.scalar(
+        select(AnonymousSession)
+        .where(AnonymousSession.session_id == session_id)
+    )
+
+    if not user:
+        raise HTTPException(
+            status_code=404,
+            detail="user not found"
+        )
+
+    conversation = db.scalar(
+        select(Conversation)
+        .where(Conversation.conversation_id == conversation_id)
+    )
+
+    if not conversation:
+        raise HTTPException(
+            status_code=404,
+            detail="conversation not found"
+        )
+
+    partner_id = conversation.user2_session_id if user.session_id == conversation.user1_session_id else conversation.user1_session_id
+    
+    partner = db.scalar(
+        select(AnonymousSession)
+        .where(AnonymousSession.session_id == partner_id)
+    )
+    if not partner:
+        raise HTTPException(status_code=404, detail="Partner not found")
+
+    if image.content_type not in ["image/jpeg", "image/png", "image/gif", "image/webp"]:
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid image type"
+        )
+    
+    image_data = image.file.read()
+    if len(image_data) > 10 * 1024 * 1024:
+        raise HTTPException(
+            status_code=400,
+            detail="Image size exceeds 10MB limit"
+        )
+    
+    image_url = await upload_image(image_data, f"nearly/messages/{conversation_id}")
+
+    if not image_url:
+        return {"message": "upload failed"}
+
+    message=Message(
+        conversation_id=conversation_id,
+        sender_id=session_id,
+        receiver_id=partner_id,
+        message=image_url["url"],
+        type="image"
+    )
+    db.add(message)
+    db.commit()
+    db.refresh(message)
+    
+    notifications=db.scalars(
+        select(Notification)
+        .where(Notification.session_id == partner.id)
+        .where(Notification.type == "message")
+    ).all()
+
+    for notif in notifications:
+        if notif.payload['conversation_id'] == conversation_id:
+            db.delete(notif)
+            db.commit()
+
+    notification=Notification(
+        session_id=partner.id,
+        type="message",
+        payload={
+            "conversation_id":conversation_id,
+            "sender_id":session_id,
+            "sender_name":user.name,
+            "sender_avatar":user.avatar,
+        },
+        is_read=False,
+        created_at=datetime.now()
+    )
+    db.add(notification)
+    db.commit()
+    db.refresh(notification)
+    
+    await ws_manager.send_json(
+        partner_id,
+        {
+            "type": "image_message_sent",
+            "message_id": message.id,
+            "conversation_id": message.conversation_id,
+            "message": message.message,
+            "sender_id": message.sender_id,
+            "sender_name": user.name,
+            "sender_avatar": user.avatar
+        }
+    )
+    
+    return{
+        "message":"message sent",
+        "message_id": message.id,
+        "url": image_url["url"],
+        "local_id": local_id
     }
