@@ -82,7 +82,7 @@ export default function HeaderIcons({ session }) {
                         fetchConversations();
                     }
                     fetchNotifications();
-                } else if (data.type === "chat_message") {
+                } else if (data.type === "chat_message" || data.type === "image_message_sent") {
                     fetchConversations();
                     
                     const isChatRoute = window.location.pathname === "/chat";
@@ -472,7 +472,7 @@ export default function HeaderIcons({ session }) {
                                     else if (diffDays < 7) timeLabel = `${diffDays}d ago`;
                                     else timeLabel = displayDate.toLocaleDateString(undefined, { month: "short", day: "numeric" });
                                     
-                                    const previewText = conv.last_message_text ? conv.last_message_text : "Tap to open conversation";
+                                    const previewText = conv.last_message_type === 'image' ? '📷 Image' : (conv.last_message_text ? conv.last_message_text : "Tap to open conversation");
 
                                     return (
                                         <div key={i} className="conv-item" onClick={() => openConversation(conv)} role="button" tabIndex={0} onKeyDown={e => e.key === "Enter" && openConversation(conv)}>

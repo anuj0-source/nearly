@@ -133,14 +133,14 @@ export default function GlobalNotifications() {
                     // Auto-dismiss all notifications after 5 seconds
                     setTimeout(() => removeToast(id), 5000);
                 } 
-                else if (data.type === "chat_message") {
+                else if (data.type === "chat_message" || data.type === "image_message_sent") {
                     // Show toast if user is not on chat page, or if they are on chat but talking to someone else
                     if (location.pathname !== "/chat" || (activePartner !== data.sender_id && window.activeLiveMatchSessionId !== data.sender_id)) {
                         const id = Date.now().toString() + Math.random().toString();
                         const toast = {
                             id,
                             title: data.sender_name ? data.sender_name : "New Message",
-                            message: data.text,
+                            message: data.type === "image_message_sent" ? "📷 Image" : data.text,
                             time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
                             icon: "chat",
                             avatar: data.sender_avatar,

@@ -19,35 +19,54 @@ export function WebSocketProvider({ children }) {
         return () => listenersRef.current.delete(fn);
     }, []);
 
+    const connectingPromiseRef = useRef(null);
+
     // ── Open a new WebSocket (closes any existing one first) ──
     const connect = useCallback((sessionId) => {
         if (!sessionId || !BACKEND_URL) {
             return Promise.reject(new Error("Missing sessionId or BACKEND_URL"));
         }
 
+        if (connectingPromiseRef.current) {
+            return connectingPromiseRef.current;
+        }
+
+        const wsUrl = `${BACKEND_URL.replace(/^http/, "ws")}/api/chat/ws?session_id=${sessionId}`;
+
+        if (websocketRef.current && (websocketRef.current.readyState === WebSocket.OPEN || websocketRef.current.readyState === WebSocket.CONNECTING) && websocketRef.current.url === wsUrl) {
+            return Promise.resolve(websocketRef.current);
+        }
+
         // Close existing socket cleanly before opening a new one.
         if (websocketRef.current) {
             websocketRef.current.onclose = null;
+            websocketRef.current.onerror = null;
             websocketRef.current.close();
             websocketRef.current = null;
         }
 
-        return new Promise((resolve, reject) => {
-            const wsUrl = `${BACKEND_URL.replace(/^http/, "ws")}/api/chat/ws?session_id=${sessionId}`;
+        const promise = new Promise((resolve, reject) => {
             const ws = new WebSocket(wsUrl);
             websocketRef.current = ws;
 
             ws.onopen = () => {
                 setSocketReady(true);
+                connectingPromiseRef.current = null;
                 resolve(ws);
             };
 
             ws.onclose = () => {
                 setSocketReady(false);
+                if (connectingPromiseRef.current === promise) {
+                    connectingPromiseRef.current = null;
+                }
             };
 
             ws.onerror = () => {
                 setSocketReady(false);
+                if (connectingPromiseRef.current === promise) {
+                    connectingPromiseRef.current = null;
+                }
                 reject(new Error("WebSocket connection failed"));
             };
 
@@ -58,6 +77,9 @@ export function WebSocketProvider({ children }) {
                 });
             };
         });
+
+        connectingPromiseRef.current = promise;
+        return promise;
     }, []);
 
     // ── Explicitly close the socket (used by endChat / user_left) ──

@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { TransformWrapper, TransformComponent } from "react-zoom-pan-pinch";
 import { useWebSocket } from "../contexts/WebSocketContext";
 import {
     ArrowRight,
@@ -18,7 +19,8 @@ import {
     Trash,
     Reply,
     ChevronDown,
-    CornerUpRight
+    CornerUpRight,
+    ImagePlus
 } from "lucide-react";
 import AnonymousAvatar from "../components/AnonymousAvatar";
 import GhostMark from "../components/GhostMark";
@@ -153,7 +155,7 @@ const getMessageDateLabel = (dateString) => {
 // CREATE CHAT MESSAGE
 // =================================================
 
-function createChatMessage({ id, idPrefix, sender, text, reply_of }) {
+function createChatMessage({ id, idPrefix, sender, text, reply_of, type = "text" }) {
     const createdAt = new Date();
     const finalId = id !== undefined ? String(id) : `${idPrefix}-${createdAt.getTime()}`;
 
@@ -162,6 +164,7 @@ function createChatMessage({ id, idPrefix, sender, text, reply_of }) {
         local_id: finalId,
         sender,
         text,
+        type,
         createdAt: createdAt.toISOString(),
         reply_of: (reply_of !== undefined && reply_of !== null) ? String(reply_of) : null,
     };
@@ -325,15 +328,55 @@ function ReplyPreview({ replyingTo, setReplyingTo, partnerName }) {
             borderRadius: '8px', marginBottom: '8px', borderLeft: '4px solid var(--accent)',
             fontSize: '13px'
         }}>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', overflow: 'hidden' }}>
-                <span style={{ color: 'var(--accent)', fontWeight: 600, fontFamily: 'var(--brand)' }}>
-                    {replyingTo.sender === 'me' ? 'You' : (replyingTo.senderName || partnerName || 'Them')}
-                </span>
-                <span style={{ color: 'var(--muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                    {replyingTo.text}
-                </span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', overflow: 'hidden' }}>
+                {replyingTo.type === 'image' && (
+                    <img src={replyingTo.text} alt="preview" style={{ height: '48px', width: '48px', borderRadius: '6px', objectFit: 'cover', flexShrink: 0 }} />
+                )}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', overflow: 'hidden' }}>
+                    <span style={{ color: 'var(--accent)', fontWeight: 600, fontFamily: 'var(--brand)' }}>
+                        {replyingTo.sender === 'me' ? 'You' : (replyingTo.senderName || partnerName || 'Them')}
+                    </span>
+                    <span style={{ color: 'var(--muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        {replyingTo.type === 'image' ? (
+                            <>
+                                <ImagePlus size={14} />
+                                <span>Image</span>
+                            </>
+                        ) : (
+                            replyingTo.text
+                        )}
+                    </span>
+                </div>
             </div>
             <button type="button" onClick={() => setReplyingTo(null)} style={{ background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer', padding: '4px', display: 'grid', placeItems: 'center' }}>
+                <X size={16} />
+            </button>
+        </div>
+    );
+}
+
+function ImagePreview({ file, onRemove }) {
+    if (!file) return null;
+    
+    return (
+        <div className="image-preview" style={{
+            display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+            padding: '8px 12px', background: 'var(--surface)',
+            borderRadius: '8px', marginBottom: '8px', borderLeft: '4px solid var(--accent)',
+            fontSize: '13px'
+        }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', overflow: 'hidden' }}>
+                <img src={URL.createObjectURL(file)} alt="Staged" style={{ width: '36px', height: '36px', objectFit: 'cover', borderRadius: '4px' }} />
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', overflow: 'hidden' }}>
+                    <span style={{ color: 'var(--accent)', fontWeight: 600, fontFamily: 'var(--brand)' }}>
+                        Attached Image
+                    </span>
+                    <span style={{ color: 'var(--muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        {file.name}
+                    </span>
+                </div>
+            </div>
+            <button type="button" onClick={onRemove} style={{ background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer', padding: '4px', display: 'grid', placeItems: 'center' }}>
                 <X size={16} />
             </button>
         </div>
@@ -352,6 +395,14 @@ function Chat() {
     const [searchParams, setSearchParams] = useSearchParams();
     const ws = useWebSocket();
 
+    const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
+
+    useEffect(() => {
+        const handleResize = () => setIsMobile(window.innerWidth <= 768);
+        window.addEventListener('resize', handleResize);
+        return () => window.removeEventListener('resize', handleResize);
+    }, []);
+
 
     // =================================================
     // CHAT STATE
@@ -360,6 +411,75 @@ function Chat() {
     const [chatState, setChatState] = useState("setup");
     const [replyingTo, setReplyingTo] = useState(null);
     const [editingMessage, setEditingMessage] = useState(null);
+    const [stagedImage, setStagedImage] = useState(null);
+    const [historyStagedImage, setHistoryStagedImage] = useState(null);
+    const [zoomedImage, setZoomedImage] = useState(null);
+
+    const renderImageModal = () => {
+        if (!zoomedImage) return null;
+        return createPortal(
+            <div 
+                style={{ 
+                    position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, 
+                    backgroundColor: 'rgba(0, 0, 0, 0.7)', 
+                    backdropFilter: 'blur(12px)',
+                    WebkitBackdropFilter: 'blur(12px)',
+                    zIndex: 2147483647, 
+                    display: 'flex', justifyContent: 'center', alignItems: 'center',
+                    animation: 'modalFadeIn 0.3s ease-out forwards',
+                    cursor: 'zoom-out'
+                }}
+                onClick={() => setZoomedImage(null)}
+            >
+                <style>{`
+                    @keyframes modalFadeIn { from { opacity: 0; } to { opacity: 1; } }
+                    @keyframes modalZoomIn { from { transform: scale(0.95); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+                    .image-modal-content {
+                        animation: modalZoomIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+                        box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.7);
+                        border-radius: 12px;
+                        cursor: default;
+                    }
+                    .image-modal-close-btn {
+                        transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+                    }
+                    .image-modal-close-btn:hover {
+                        background: rgba(255, 255, 255, 0.25) !important;
+                        transform: scale(1.1);
+                    }
+                `}</style>
+                <div onClick={(e) => e.stopPropagation()}>
+                    <TransformWrapper
+                        initialScale={1}
+                        initialPositionX={0}
+                        initialPositionY={0}
+                        centerOnInit={true}
+                    >
+                        {({ zoomIn, zoomOut, resetTransform, ...rest }) => (
+                            <React.Fragment>
+                                <TransformComponent>
+                                    <img 
+                                        className="image-modal-content"
+                                        src={zoomedImage} 
+                                        alt="Zoomed" 
+                                        style={{ maxWidth: '90vw', maxHeight: '90vh', objectFit: 'contain', display: 'block' }} 
+                                    />
+                                </TransformComponent>
+                            </React.Fragment>
+                        )}
+                    </TransformWrapper>
+                </div>
+                <button 
+                    className="image-modal-close-btn"
+                    onClick={(e) => { e.stopPropagation(); setZoomedImage(null); }}
+                    style={{ position: 'absolute', top: '24px', right: '24px', background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.2)', borderRadius: '50%', color: 'white', padding: '10px', cursor: 'pointer', display: 'grid', placeItems: 'center', backdropFilter: 'blur(8px)', zIndex: 10 }}
+                >
+                    <X size={22} strokeWidth={2.5} />
+                </button>
+            </div>,
+            document.body
+        );
+    };
 
     const [match, setMatch] =
         useState(anonymousPeople[0]);
@@ -816,6 +936,7 @@ function Chat() {
             setActiveConv({ ...openConv, partner_status: freshStatus });
 
             // Messages were pre-fetched by Friends.jsx — map them now
+            const prefetched = openConv.prefetchedMessages || [];
             const mapped = prefetched.map(m => ({
                 id: String(m.id),
                 sender: m.sender_id === session?.session_id ? "me" : "them",
@@ -823,6 +944,7 @@ function Chat() {
                 createdAt: m.created_at.endsWith("Z") ? m.created_at : m.created_at + "Z",
                 reply_of: m.reply_of ? String(m.reply_of) : null,
                 edited: m.edited,
+                type: m.type || "text",
             }));
             if (mapped.length < 15) {
                 setHasMoreHistory(false);
@@ -899,6 +1021,7 @@ function Chat() {
                         createdAt: m.created_at.endsWith("Z") ? m.created_at : m.created_at + "Z",
                         reply_of: m.reply_of ? String(m.reply_of) : null,
                         edited: m.edited,
+                        type: m.type || "text",
                     }));
                     if (mapped.length < 15) {
                         setHasMoreHistory(false);
@@ -1067,6 +1190,7 @@ function Chat() {
                     createdAt: m.created_at.endsWith("Z") ? m.created_at : m.created_at + "Z",
                     reply_of: m.reply_of ? String(m.reply_of) : null,
                     edited: m.edited,
+                    type: m.type || "text",
                 }));
                 setMessages(mapped);
             }
@@ -1141,6 +1265,22 @@ function Chat() {
                     return;
                 }
 
+                if (payload.type === "image_uploaded") {
+                    const localId = payload.local_id;
+                    if (!localId) return;
+                    
+                    const updateMessage = (m) => {
+                        if (String(m.id) === String(localId) || String(m.local_id) === String(localId)) {
+                            return { ...m, status: payload.message === "success" ? "sent" : "failed" };
+                        }
+                        return m;
+                    };
+                    
+                    setHistoryMessages(prev => prev.map(updateMessage));
+                    setMessages(prev => prev.map(updateMessage));
+                    return;
+                }
+
                 if (payload.type === "message_edited") {
                     const idToEdit = String(payload.message_id);
                     setHistoryMessages(prev => prev.map(m => String(m.id) === idToEdit ? { ...m, text: payload.message, message: payload.message, edited: true } : m));
@@ -1194,6 +1334,56 @@ function Chat() {
                         ]);
                         
                         // Mark as read
+                        if (incomingConvId) {
+                            fetch(`${BACKEND_URL}/api/messages/read/${incomingConvId}`, {
+                                method: "POST",
+                                credentials: "include"
+                            }).then(() => {
+                                window.dispatchEvent(new CustomEvent("force_conversations_refresh"));
+                            }).catch(console.error);
+                        }
+                    }
+                    return;
+                }
+
+                if (payload.type === "image_message_sent") {
+                    const incomingConvId = payload.conversation_id;
+
+                    if (incomingConvId && activeConvRef.current?.conversation_id === incomingConvId) {
+                        setHistoryMessages(prev => [
+                            ...prev,
+                            createChatMessage({
+                                id: payload.message_id,
+                                idPrefix: "received-history",
+                                sender: "them",
+                                text: payload.message,
+                                type: "image"
+                            }),
+                        ]);
+                        window.requestAnimationFrame(() => {
+                            historyMessagesRef.current?.scrollTo({
+                                top: historyMessagesRef.current.scrollHeight,
+                                behavior: "smooth",
+                            });
+                        });
+                        fetch(`${BACKEND_URL}/api/messages/read/${incomingConvId}`, {
+                            method: "POST",
+                            credentials: "include"
+                        }).then(() => {
+                            window.dispatchEvent(new CustomEvent("force_conversations_refresh"));
+                        }).catch(console.error);
+                    }
+                    else if (!incomingConvId || conversationIdRef.current === incomingConvId) {
+                        setMessages((current) => [
+                            ...current,
+                            createChatMessage({
+                                id: payload.message_id,
+                                idPrefix: "received",
+                                sender: "them",
+                                text: payload.message,
+                                type: "image"
+                            }),
+                        ]);
                         if (incomingConvId) {
                             fetch(`${BACKEND_URL}/api/messages/read/${incomingConvId}`, {
                                 method: "POST",
@@ -1600,6 +1790,7 @@ function Chat() {
                     createdAt: m.created_at.endsWith("Z") ? m.created_at : m.created_at + "Z",
                     reply_of: m.reply_of ? String(m.reply_of) : null,
                     edited: m.edited,
+                    type: m.type || "text",
                 }));
                 if (mapped.length < 15) {
                     setHasMoreHistory(false);
@@ -1648,6 +1839,7 @@ function Chat() {
                         createdAt: m.created_at.endsWith("Z") ? m.created_at : m.created_at + "Z",
                         reply_of: m.reply_of ? String(m.reply_of) : null,
                         edited: m.edited,
+                        type: m.type || "text",
                     }));
 
                     if (mapped.length < 15) {
@@ -1706,16 +1898,159 @@ function Chat() {
 
 
     // =================================================
+    // SEND IMAGE MESSAGE
+    // =================================================
+
+    function handleImageUpload(event, isHistory = false) {
+        const file = event.target.files?.[0];
+        if (!file) return;
+        
+        if (isHistory) {
+            setHistoryStagedImage(file);
+            setHistoryMessage("");
+        } else {
+            setStagedImage(file);
+            setMessage("");
+        }
+        
+        if (event?.target) event.target.value = "";
+    }
+
+    async function performImageUpload(file, isHistory = false) {
+
+        const convId = isHistory ? activeConv?.conversation_id : match?.conversation_id;
+        if (!convId) {
+            console.error("No conversation ID available");
+            return;
+        }
+
+        const localId = `img-${new Date().getTime()}`;
+        const localUrl = URL.createObjectURL(file);
+        
+        const optimisticMessage = createChatMessage({
+            id: localId,
+            sender: "me",
+            text: localUrl,
+            type: "image",
+            reply_of: replyingTo?.id ? String(replyingTo.id) : null,
+        });
+        optimisticMessage.status = "sending";
+        optimisticMessage.file = file;
+
+        if (isHistory) {
+            setHistoryMessages(prev => [...prev, optimisticMessage]);
+            window.requestAnimationFrame(() => {
+                historyMessagesRef.current?.scrollTo({
+                    top: historyMessagesRef.current.scrollHeight,
+                    behavior: "smooth",
+                });
+            });
+        } else {
+            setMessages(prev => [...prev, optimisticMessage]);
+            window.requestAnimationFrame(() => {
+                scrollMessagesToBottom(messagesRef.current);
+            });
+        }
+
+        setReplyingTo(null);
+
+        const formData = new FormData();
+        formData.append("image", file);
+
+        try {
+            const res = await fetch(`${BACKEND_URL}/api/messages/send-image?conversation_id=${convId}&local_id=${localId}`, {
+                method: "POST",
+                credentials: "include",
+                body: formData,
+            });
+            if (res.ok) {
+                const data = await res.json();
+                if (data.message === "upload failed") {
+                    console.error("Upload failed on backend");
+                    setMessages(prev => prev.map(m => String(m.id) === String(localId) || String(m.local_id) === String(localId) ? { ...m, status: "failed" } : m));
+                    setHistoryMessages(prev => prev.map(m => String(m.id) === String(localId) || String(m.local_id) === String(localId) ? { ...m, status: "failed" } : m));
+                } else {
+                    const updateMessage = (m) => String(m.id) === String(localId) || String(m.local_id) === String(localId) ? { ...m, status: "sent", id: data.message_id ? String(data.message_id) : m.id, text: data.url || m.text } : m;
+                    setMessages(prev => prev.map(updateMessage));
+                    setHistoryMessages(prev => prev.map(updateMessage));
+                }
+            } else {
+                console.error("Failed to send image");
+                setMessages(prev => prev.map(m => String(m.id) === String(localId) || String(m.local_id) === String(localId) ? { ...m, status: "failed" } : m));
+                setHistoryMessages(prev => prev.map(m => String(m.id) === String(localId) || String(m.local_id) === String(localId) ? { ...m, status: "failed" } : m));
+            }
+        } catch (error) {
+            console.error("Error sending image:", error);
+            setMessages(prev => prev.map(m => String(m.id) === String(localId) ? { ...m, status: "failed" } : m));
+            setHistoryMessages(prev => prev.map(m => String(m.id) === String(localId) ? { ...m, status: "failed" } : m));
+        }
+    }
+
+    async function retryImageUpload(item, isHistory = false) {
+        if (!item.file || (!item.local_id && !item.id)) return;
+        const localId = item.local_id || item.id;
+        
+        const convId = isHistory ? activeConv?.conversation_id : match?.conversation_id;
+        if (!convId) return;
+
+        const updateMessage = (m) => String(m.id) === String(localId) || String(m.local_id) === String(localId) ? { ...m, status: "sending" } : m;
+        setMessages(prev => prev.map(updateMessage));
+        setHistoryMessages(prev => prev.map(updateMessage));
+
+        const formData = new FormData();
+        formData.append("image", item.file);
+
+        try {
+            const res = await fetch(`${BACKEND_URL}/api/messages/send-image?conversation_id=${convId}&local_id=${localId}`, {
+                method: "POST",
+                credentials: "include",
+                body: formData,
+            });
+            if (res.ok) {
+                const data = await res.json();
+                if (data.message === "upload failed") {
+                    console.error("Upload failed on backend");
+                    setMessages(prev => prev.map(m => String(m.id) === String(localId) || String(m.local_id) === String(localId) ? { ...m, status: "failed" } : m));
+                    setHistoryMessages(prev => prev.map(m => String(m.id) === String(localId) || String(m.local_id) === String(localId) ? { ...m, status: "failed" } : m));
+                } else {
+                    const updateSuccess = (m) => String(m.id) === String(localId) || String(m.local_id) === String(localId) ? { ...m, status: "sent", id: data.message_id ? String(data.message_id) : m.id, text: data.url || m.text } : m;
+                    setMessages(prev => prev.map(updateSuccess));
+                    setHistoryMessages(prev => prev.map(updateSuccess));
+                }
+            } else {
+                setMessages(prev => prev.map(m => String(m.id) === String(localId) || String(m.local_id) === String(localId) ? { ...m, status: "failed" } : m));
+                setHistoryMessages(prev => prev.map(m => String(m.id) === String(localId) || String(m.local_id) === String(localId) ? { ...m, status: "failed" } : m));
+            }
+        } catch (error) {
+            setMessages(prev => prev.map(m => String(m.id) === String(localId) ? { ...m, status: "failed" } : m));
+            setHistoryMessages(prev => prev.map(m => String(m.id) === String(localId) ? { ...m, status: "failed" } : m));
+        }
+    }
+
+    // =================================================
     // SEND HISTORY MESSAGE
     // =================================================
 
     async function sendHistoryMessage(event) {
         event.preventDefault();
         const trimmed = historyMessage.trim();
-        if (!trimmed || !activeConv) return;
+        const hasStagedImage = !!historyStagedImage;
+        if ((!trimmed && !hasStagedImage) || !activeConv) return;
 
         const currentEditing = editingMessage;
         const currentReplyOf = replyingTo?.id;
+        
+        if (hasStagedImage) {
+            performImageUpload(historyStagedImage, true);
+            setHistoryStagedImage(null);
+        }
+
+        if (!trimmed) {
+            setHistoryMessage(""); setReplyingTo(null); setEditingMessage(null);
+            if (historyInputRef.current) historyInputRef.current.style.height = "auto";
+            return;
+        }
+
         setHistoryMessage(""); setReplyingTo(null); setEditingMessage(null);
 
         // Reset textarea height
@@ -1742,7 +2077,7 @@ function Chat() {
         }
 
         // Optimistically add to UI
-        const localId = `sent-${Date.now()}`;
+        const localId = `sent-${new Date().getTime()}`;
         const optimistic = {
             id: localId,
             local_id: localId,
@@ -1847,12 +2182,26 @@ function Chat() {
         event.preventDefault();
 
         const trimmed = message.trim();
-        if (!trimmed) {
+        const hasStagedImage = !!stagedImage;
+
+        if (!trimmed && !hasStagedImage) {
             return;
         }
 
         const currentEditing = editingMessage;
         const currentReplyOf = replyingTo?.id;
+
+        if (hasStagedImage) {
+            performImageUpload(stagedImage, false);
+            setStagedImage(null);
+        }
+
+        if (!trimmed) {
+            setMessage(""); setReplyingTo(null); setEditingMessage(null);
+            if (messageInputRef.current) messageInputRef.current.style.height = "auto";
+            return;
+        }
+
         setMessage(""); setReplyingTo(null); setEditingMessage(null);
 
         if (messageInputRef.current) {
@@ -1877,7 +2226,7 @@ function Chat() {
             return;
         }
 
-        const localId = `sent-${Date.now()}`;
+        const localId = `sent-${new Date().getTime()}`;
         setMessages(
             (current) => [
                 ...current,
@@ -1944,7 +2293,7 @@ function Chat() {
         if (contextMenu === null) return null;
         
         const msg = historyMessages.find(m => String(m.id) === String(contextMenu.messageId)) || messages.find(m => String(m.id) === String(contextMenu.messageId));
-        const isEditable = msg && (new Date().getTime() - new Date(msg.createdAt).getTime()) <= 2 * 60 * 60 * 1000;
+        const isEditable = msg && msg.type !== 'image' && (new Date().getTime() - new Date(msg.createdAt).getTime()) <= 2 * 60 * 60 * 1000;
 
         return createPortal(
             <div 
@@ -2294,13 +2643,48 @@ function Chat() {
                                     if (!original) return null;
                                     const senderName = original.sender === "me" ? "You" : (partnerName || match?.name || "Them");
                                     return (
-                                        <div className="reply-preview-in-bubble">
-                                            <div className="reply-preview-name">{senderName}</div>
-                                            <div className="reply-preview-text">{original.text}</div>
+                                        <div className="reply-preview-in-bubble" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                            {original.type === 'image' && (
+                                                <img src={original.text} alt="preview" style={{ height: '40px', width: '40px', borderRadius: '4px', objectFit: 'cover', flexShrink: 0 }} />
+                                            )}
+                                            <div style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+                                                <div className="reply-preview-name">{senderName}</div>
+                                                <div className="reply-preview-text" style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                                    {original.type === 'image' ? (
+                                                        <>
+                                                            <ImagePlus size={12} />
+                                                            <span>Image</span>
+                                                        </>
+                                                    ) : (
+                                                        original.text
+                                                    )}
+                                                </div>
+                                            </div>
                                         </div>
                                     );
                                 })()}
-                                {formatMessageText(item.text)}
+                                {item.type === "image" ? (
+                                    <div style={{ position: "relative", display: "inline-block" }}>
+                                        <img src={item.text} alt="Sent image" onLoad={() => { if (historyMessagesRef.current) scrollMessagesToBottom(historyMessagesRef.current, "smooth"); }} onClick={(e) => { e.stopPropagation(); e.preventDefault(); setZoomedImage(item.text); }} style={{ maxWidth: "250px", maxHeight: "250px", borderRadius: "8px", marginTop: "4px", cursor: "zoom-in", opacity: item.status === "sending" ? 0.6 : 1, transition: "opacity 0.2s ease", pointerEvents: "auto" }} />
+                                        {item.status === "sending" && (
+                                            <div style={{ position: "absolute", top: "50%", left: "50%", transform: "translate(-50%, -50%)" }}>
+                                                <div className="typing" style={{ padding: "8px 12px", background: "rgba(0,0,0,0.5)" }}><i style={{ background: "white" }}/><i style={{ background: "white" }}/><i style={{ background: "white" }}/></div>
+                                            </div>
+                                        )}
+                                        {item.status === "failed" && (
+                                            <div 
+                                                style={{ position: "absolute", top: "50%", left: "50%", transform: "translate(-50%, -50%)", background: "rgba(0,0,0,0.6)", borderRadius: "50%", padding: "12px", cursor: "pointer", color: "white", display: "flex", flexDirection: "column", alignItems: "center", gap: "4px" }}
+                                                onClick={(e) => { e.stopPropagation(); retryImageUpload(item, true); }}
+                                                title="Retry upload"
+                                            >
+                                                <RotateCw size={24} />
+                                                <span style={{ fontSize: "10px", fontWeight: "bold" }}>Retry</span>
+                                            </div>
+                                        )}
+                                    </div>
+                                ) : (
+                                    formatMessageText(item.text)
+                                )}
                                 <small>
                                     <time dateTime={item.createdAt}>
                                         {item.edited && <span className="opacity-70 mr-1">(edited)</span>}
@@ -2354,40 +2738,61 @@ function Chat() {
                         <div className="composer-inner">
                             <EditPreview editingMessage={editingMessage} setEditingMessage={setEditingMessage} />
                             <ReplyPreview replyingTo={replyingTo} setReplyingTo={setReplyingTo} partnerName={partnerName} />
+                            <ImagePreview file={historyStagedImage} onRemove={() => setHistoryStagedImage(null)} />
                             <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'flex-end', gap: '8px', width: '100%' }}>
-                                <textarea
-                                ref={historyInputRef}
-                                rows={1}
-                                value={historyMessage}
-                                onChange={e => {
-                                    setHistoryMessage(e.target.value);
-                                    e.target.style.height = "auto";
-                                    e.target.style.height = `${e.target.scrollHeight}px`;
-                                    // Send typing indicator via WS with conversation_id so partner knows
-                                    ws.sendJson({
-                                        type: "typing",
-                                        is_typing: true,
-                                        conversation_id: activeConv?.conversation_id,
-                                    });
-                                    window.clearTimeout(historyTypingTimerRef.current);
-                                    historyTypingTimerRef.current = window.setTimeout(() => {
-                                        ws.sendJson({
-                                            type: "typing",
-                                            is_typing: false,
-                                            conversation_id: activeConv?.conversation_id,
-                                        });
-                                    }, 1500);
-                                }}
-                                onKeyDown={e => {
-                                    if (e.key === "Enter" && !e.shiftKey) {
-                                        e.preventDefault();
-                                        sendHistoryMessage(e);
-                                    }
-                                }}
-                                placeholder="Send a message…"
-                                aria-label="Message"
-                                style={{ resize: "none" }}
-                            />
+                                <label className="image-upload-btn" style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 8px', color: '#9ca3af', height: '44px' }}>
+                                    <input type="file" accept="image/*" style={{ display: 'none' }} onChange={(e) => handleImageUpload(e, true)} />
+                                    <ImagePlus size={20} strokeWidth={2} />
+                                </label>
+                                {historyStagedImage ? (
+                                    <input
+                                        type="text"
+                                        autoFocus
+                                        readOnly
+                                        value={isMobile ? "Image selected" : "Image selected - Press Enter to send"}
+                                        onKeyDown={(e) => {
+                                            if (e.key === 'Enter') {
+                                                e.preventDefault();
+                                                sendHistoryMessage(e);
+                                            }
+                                        }}
+                                        style={{ flex: 1, padding: "10px 6px", color: "var(--faint)", fontSize: "14px", fontWeight: 500, minHeight: "42px", height: "42px", background: "transparent", border: "none", outline: "none", cursor: "default" }}
+                                    />
+                                ) : (
+                                    <textarea
+                                        ref={historyInputRef}
+                                        rows={1}
+                                        value={historyMessage}
+                                        onChange={e => {
+                                            setHistoryMessage(e.target.value);
+                                            e.target.style.height = "auto";
+                                            e.target.style.height = `${e.target.scrollHeight}px`;
+                                            // Send typing indicator via WS with conversation_id so partner knows
+                                            ws.sendJson({
+                                                type: "typing",
+                                                is_typing: true,
+                                                conversation_id: activeConv?.conversation_id,
+                                            });
+                                            window.clearTimeout(historyTypingTimerRef.current);
+                                            historyTypingTimerRef.current = window.setTimeout(() => {
+                                                ws.sendJson({
+                                                    type: "typing",
+                                                    is_typing: false,
+                                                    conversation_id: activeConv?.conversation_id,
+                                                });
+                                            }, 1500);
+                                        }}
+                                        onKeyDown={e => {
+                                            if (e.key === "Enter" && !e.shiftKey) {
+                                                e.preventDefault();
+                                                sendHistoryMessage(e);
+                                            }
+                                        }}
+                                        placeholder="Send a message…"
+                                        aria-label="Message"
+                                        style={{ resize: "none" }}
+                                    />
+                                )}
                             <button
                                 className="send-btn"
                                 type="submit"
@@ -2402,6 +2807,7 @@ function Chat() {
                 </form>
 
                 {renderContextMenu()}
+                {renderImageModal()}
 
             </section>
         );
@@ -2729,16 +3135,51 @@ function Chat() {
                                 {item.reply_of && (() => {
                                     const original = historyMessages.find(m => m.id === item.reply_of) || messages.find(m => m.id === item.reply_of);
                                     if (!original) return null;
-                                    const senderName = original.sender === "me" ? "You" : (match?.name || partnerName || "Them");
+                                    const senderName = original.sender === "me" ? "You" : (match?.name || "Them");
                                     return (
-                                        <div className="reply-preview-in-bubble">
-                                            <div className="reply-preview-name">{senderName}</div>
-                                            <div className="reply-preview-text">{original.text}</div>
+                                        <div className="reply-preview-in-bubble" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                            {original.type === 'image' && (
+                                                <img src={original.text} alt="preview" style={{ height: '40px', width: '40px', borderRadius: '4px', objectFit: 'cover', flexShrink: 0 }} />
+                                            )}
+                                            <div style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+                                                <div className="reply-preview-name">{senderName}</div>
+                                                <div className="reply-preview-text" style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                                    {original.type === 'image' ? (
+                                                        <>
+                                                            <ImagePlus size={12} />
+                                                            <span>Image</span>
+                                                        </>
+                                                    ) : (
+                                                        original.text
+                                                    )}
+                                                </div>
+                                            </div>
                                         </div>
                                     );
                                 })()}
 
-                                {formatMessageText(item.text)}
+                                {item.type === "image" ? (
+                                    <div style={{ position: "relative", display: "inline-block" }}>
+                                        <img src={item.text} alt="Sent image" onLoad={() => { if (messagesRef.current) scrollMessagesToBottom(messagesRef.current, "smooth"); }} onClick={(e) => { e.stopPropagation(); e.preventDefault(); setZoomedImage(item.text); }} style={{ maxWidth: "250px", maxHeight: "250px", borderRadius: "8px", marginTop: "4px", cursor: "zoom-in", opacity: item.status === "sending" ? 0.6 : 1, transition: "opacity 0.2s ease", pointerEvents: "auto" }} />
+                                        {item.status === "sending" && (
+                                            <div style={{ position: "absolute", top: "50%", left: "50%", transform: "translate(-50%, -50%)" }}>
+                                                <div className="typing" style={{ padding: "8px 12px", background: "rgba(0,0,0,0.5)" }}><i style={{ background: "white" }}/><i style={{ background: "white" }}/><i style={{ background: "white" }}/></div>
+                                            </div>
+                                        )}
+                                        {item.status === "failed" && (
+                                            <div 
+                                                style={{ position: "absolute", top: "50%", left: "50%", transform: "translate(-50%, -50%)", background: "rgba(0,0,0,0.6)", borderRadius: "50%", padding: "12px", cursor: "pointer", color: "white", display: "flex", flexDirection: "column", alignItems: "center", gap: "4px" }}
+                                                onClick={(e) => { e.stopPropagation(); retryImageUpload(item, false); }}
+                                                title="Retry upload"
+                                            >
+                                                <RotateCw size={24} />
+                                                <span style={{ fontSize: "10px", fontWeight: "bold" }}>Retry</span>
+                                            </div>
+                                        )}
+                                    </div>
+                                ) : (
+                                    formatMessageText(item.text)
+                                )}
 
 
                                 <small>
@@ -2874,41 +3315,62 @@ function Chat() {
                     <div className="composer-inner">
                         <EditPreview editingMessage={editingMessage} setEditingMessage={setEditingMessage} />
                         <ReplyPreview replyingTo={replyingTo} setReplyingTo={setReplyingTo} partnerName={match?.name} />
+                        <ImagePreview file={stagedImage} onRemove={() => setStagedImage(null)} />
                         <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'flex-end', gap: '8px', width: '100%' }}>
-                            <textarea
-                            ref={messageInputRef}
-                            value={message}
-                            disabled={partnerLeft}
-                            rows={1}
-                            onKeyDown={(event) => {
-                                if (event.key === 'Enter' && !event.shiftKey) {
-                                    event.preventDefault();
-                                    sendMessage(event);
-                                }
-                            }}
-                            onChange={(event) => {
-                                setMessage(
-                                    event.target.value
-                                );
-                                
-                                event.target.style.height = "auto";
-                                event.target.style.height = `${event.target.scrollHeight}px`;
+                            <label className="image-upload-btn" style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 8px', color: '#9ca3af', height: '44px' }}>
+                                <input type="file" accept="image/*" style={{ display: 'none' }} onChange={(e) => handleImageUpload(e, false)} disabled={partnerLeft} />
+                                <ImagePlus size={20} strokeWidth={2} />
+                            </label>
+                            {stagedImage ? (
+                                <input
+                                    type="text"
+                                    autoFocus
+                                    readOnly
+                                    value={isMobile ? "Image selected" : "Image selected - Press Enter to send"}
+                                    onKeyDown={(e) => {
+                                        if (e.key === 'Enter') {
+                                            e.preventDefault();
+                                            sendMessage(e);
+                                        }
+                                    }}
+                                    style={{ flex: 1, padding: "10px 6px", color: "var(--faint)", fontSize: "14px", fontWeight: 500, minHeight: "42px", height: "42px", background: "transparent", border: "none", outline: "none", cursor: "default" }}
+                                />
+                            ) : (
+                                <textarea
+                                    ref={messageInputRef}
+                                    value={message}
+                                    disabled={partnerLeft}
+                                    rows={1}
+                                    onKeyDown={(event) => {
+                                        if (event.key === 'Enter' && !event.shiftKey) {
+                                            event.preventDefault();
+                                            sendMessage(event);
+                                        }
+                                    }}
+                                    onChange={(event) => {
+                                        setMessage(
+                                            event.target.value
+                                        );
+                                        
+                                        event.target.style.height = "auto";
+                                        event.target.style.height = `${event.target.scrollHeight}px`;
 
-                                // Notify the peer that we are typing.
-                                ws.sendJson({ type: "typing", is_typing: true });
+                                        // Notify the peer that we are typing.
+                                        ws.sendJson({ type: "typing", is_typing: true });
 
-                                // Send typing:false after 1.5 s of inactivity.
-                                window.clearTimeout(typingTimerRef.current);
-                                typingTimerRef.current = window.setTimeout(() => {
-                                    ws.sendJson({ type: "typing", is_typing: false });
-                                }, 1500);
-                            }}
-                            onFocus={
-                                handleMessageFocus
-                            }
-                            placeholder={partnerLeft ? "Chat ended" : "Say hello..."}
-                            aria-label="Message"
-                        />
+                                        // Send typing:false after 1.5 s of inactivity.
+                                        window.clearTimeout(typingTimerRef.current);
+                                        typingTimerRef.current = window.setTimeout(() => {
+                                            ws.sendJson({ type: "typing", is_typing: false });
+                                        }, 1500);
+                                    }}
+                                    onFocus={
+                                        handleMessageFocus
+                                    }
+                                    placeholder={partnerLeft ? "Chat ended" : "Say hello..."}
+                                    aria-label="Message"
+                                />
+                            )}
 
                         <button
                             className="send-btn"
@@ -2931,6 +3393,7 @@ function Chat() {
             </form>
 
             {renderContextMenu()}
+            {renderImageModal()}
 
         </section>
     );
