@@ -1218,9 +1218,9 @@ function Chat() {
             const { senderId, action } = event.detail;
             
             // Check if this action corresponds to the current chat partner
-            const currentPartner = activeConvRef.current?.user2_session_id === session?.session_id
+            const currentPartner = activeConvRef.current?.partner_session_id || (activeConvRef.current?.user2_session_id === session?.session_id
                 ? activeConvRef.current?.user1_session_id
-                : activeConvRef.current?.user2_session_id;
+                : activeConvRef.current?.user2_session_id);
 
             if (currentPartner === senderId || match?.session_id === senderId) {
                 if (action === 'accept') {
@@ -1249,9 +1249,9 @@ function Chat() {
                 if (payload.type === "notification" && payload.event === "Sent friend request" && payload.session_id) {
                     fetchFriendRequests();
                     // If the person sending us a request is our active partner, show Accept/Reject
-                    const currentPartner = activeConvRef.current?.user2_session_id === session?.session_id
+                    const currentPartner = activeConvRef.current?.partner_session_id || (activeConvRef.current?.user2_session_id === session?.session_id
                         ? activeConvRef.current?.user1_session_id
-                        : activeConvRef.current?.user2_session_id;
+                        : activeConvRef.current?.user2_session_id);
                     if (currentPartner === payload.session_id ||
                         match?.session_id === payload.session_id) {
                         setFriendStatus('received');
@@ -1260,9 +1260,9 @@ function Chat() {
                 }
 
                 if (payload.type === "notification" && payload.event === "Cancelled your friend request" && payload.session_id) {
-                    const currentPartner = activeConvRef.current?.user2_session_id === session?.session_id
+                    const currentPartner = activeConvRef.current?.partner_session_id || (activeConvRef.current?.user2_session_id === session?.session_id
                         ? activeConvRef.current?.user1_session_id
-                        : activeConvRef.current?.user2_session_id;
+                        : activeConvRef.current?.user2_session_id);
                     if (currentPartner === payload.session_id ||
                         match?.session_id === payload.session_id) {
                         setFriendStatus('none');
@@ -1271,9 +1271,9 @@ function Chat() {
                 }
 
                 if (payload.type === "notification" && payload.event === "Accepted your friend request" && payload.session_id) {
-                    const currentPartner = activeConvRef.current?.user2_session_id === session?.session_id
+                    const currentPartner = activeConvRef.current?.partner_session_id || (activeConvRef.current?.user2_session_id === session?.session_id
                         ? activeConvRef.current?.user1_session_id
-                        : activeConvRef.current?.user2_session_id;
+                        : activeConvRef.current?.user2_session_id);
                     if (currentPartner === payload.session_id ||
                         match?.session_id === payload.session_id) {
                         setFriendStatus('friend');
@@ -1282,9 +1282,23 @@ function Chat() {
                     return;
                 }
 
+                if (payload.type === "notification" && payload.event === "Rejected your friend request" && payload.session_id) {
+                    const currentPartner = activeConvRef.current?.partner_session_id || (activeConvRef.current?.user2_session_id === session?.session_id
+                        ? activeConvRef.current?.user1_session_id
+                        : activeConvRef.current?.user2_session_id);
+                    if (currentPartner === payload.session_id ||
+                        match?.session_id === payload.session_id) {
+                        setFriendStatus('none');
+                    }
+                    return;
+                }
+
                 if (payload.type === "match_found") {
                     if (payload.match?.name && payload.match?.avatar) {
-                        setMatch(payload.match);
+                        setMatch({
+                            ...payload.match,
+                            conversation_id: payload.conversation_id
+                        });
                     }
                     setMessages([]);
 
@@ -2650,7 +2664,7 @@ function Chat() {
                         </div>
                     </div>
 
-                    <div style={{ display: "flex", gap: 12 }}>
+                    <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
                         {/* History conv: friend action buttons */}
                         {!activeConv?.is_friend && friendStatus !== 'friend' && (() => {
                             const partnerId = activeConv?.user1_session_id === session?.session_id
@@ -2658,53 +2672,46 @@ function Chat() {
                                 : activeConv?.user1_session_id;
                             if (friendStatus === 'received') return (
                                 <>
+                                    <span className="hide-on-mobile" style={{ fontSize: 12, color: "var(--muted)", fontWeight: 500, userSelect: "none" }}>Friend request:</span>
                                     <button
-                                        className="ix-btn"
+                                        className="hdr-action-btn"
                                         type="button"
                                         aria-label="Accept friend request"
-                                        data-tooltip="Accept"
                                         onClick={() => acceptFriendRequestInChat(partnerId)}
                                         style={{ color: '#22c55e' }}
                                     >
-                                        <Check size={22} strokeWidth={2} />
+                                        <Check size={16} strokeWidth={2.5} /> Accept
                                     </button>
                                     <button
-                                        className="ix-btn"
+                                        className="hdr-action-btn"
                                         type="button"
                                         aria-label="Reject friend request"
-                                        data-tooltip="Reject"
                                         onClick={() => rejectFriendRequestInChat(partnerId)}
                                         style={{ color: '#ef4444' }}
                                     >
-                                        <X size={22} strokeWidth={2} />
+                                        <X size={16} strokeWidth={2.5} /> Reject
                                     </button>
                                 </>
                             );
                             if (friendStatus === 'sent') return (
                                 <button
-                                    className="ix-btn"
+                                    className="hdr-action-btn"
                                     type="button"
                                     aria-label="Cancel friend request"
-                                    data-tooltip="Cancel Request"
                                     onClick={() => cancelFriendRequestInChat(partnerId)}
                                     style={{ color: '#ef4444' }}
                                 >
-                                    <UserMinus size={22} strokeWidth={1.75} />
+                                    <UserMinus size={16} strokeWidth={2} /> Cancel Request
                                 </button>
                             );
                             return (
                                 <button
-                                    className="ix-btn"
+                                    className="hdr-action-btn"
                                     type="button"
                                     aria-label="Add friend"
-                                    data-tooltip="Add friend"
-                                    onClick={() => sendFriendRequest(
-                                        activeConv.user1_session_id === session?.session_id
-                                            ? activeConv.user2_session_id
-                                            : activeConv.user1_session_id
-                                    )}
+                                    onClick={() => sendFriendRequest(partnerId)}
                                 >
-                                    <UserPlus size={22} strokeWidth={1.75} />
+                                    <UserPlus size={16} strokeWidth={2} /> Add Friend
                                 </button>
                             );
                         })()}
@@ -3130,6 +3137,7 @@ function Chat() {
                     style={{
                         display: "flex",
                         gap: 12,
+                        alignItems: "center"
                     }}
                 >
 
@@ -3137,49 +3145,46 @@ function Chat() {
                     {!match?.is_friend && friendStatus !== 'friend' && (() => {
                         if (friendStatus === 'received') return (
                             <>
+                                <span className="hide-on-mobile" style={{ fontSize: 12, color: "var(--muted)", fontWeight: 500, userSelect: "none" }}>Friend request:</span>
                                 <button
-                                    className="ix-btn"
+                                    className="hdr-action-btn"
                                     type="button"
                                     aria-label="Accept friend request"
-                                    data-tooltip="Accept"
                                     onClick={() => acceptFriendRequestInChat(match?.session_id)}
                                     style={{ color: '#22c55e' }}
                                 >
-                                    <Check size={22} strokeWidth={2} />
+                                    <Check size={16} strokeWidth={2.5} /> Accept
                                 </button>
                                 <button
-                                    className="ix-btn"
+                                    className="hdr-action-btn"
                                     type="button"
                                     aria-label="Reject friend request"
-                                    data-tooltip="Reject"
                                     onClick={() => rejectFriendRequestInChat(match?.session_id)}
                                     style={{ color: '#ef4444' }}
                                 >
-                                    <X size={22} strokeWidth={2} />
+                                    <X size={16} strokeWidth={2.5} /> Reject
                                 </button>
                             </>
                         );
                         if (friendStatus === 'sent') return (
                             <button
-                                className="ix-btn"
+                                className="hdr-action-btn"
                                 type="button"
                                 aria-label="Cancel friend request"
-                                data-tooltip="Cancel Request"
                                 onClick={() => cancelFriendRequestInChat(match?.session_id)}
                                 style={{ color: '#ef4444' }}
                             >
-                                <UserMinus size={22} strokeWidth={1.75} />
+                                <UserMinus size={16} strokeWidth={2} /> Cancel Request
                             </button>
                         );
                         return (
                             <button
-                                className="ix-btn"
+                                className="hdr-action-btn"
                                 type="button"
                                 aria-label="Add friend"
-                                data-tooltip="Add friend"
-                                onClick={sendFriendRequest}
+                                onClick={() => sendFriendRequest(match?.session_id)}
                             >
-                                <UserPlus size={22} strokeWidth={1.75} />
+                                <UserPlus size={16} strokeWidth={2} /> Add Friend
                             </button>
                         );
                     })()}

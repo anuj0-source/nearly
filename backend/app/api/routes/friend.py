@@ -254,6 +254,18 @@ async def reject_friend_request(
             detail="user not found"
         )
 
+    if user2.status == "active":
+        await manager.send_json(
+            sender_id,
+            {
+                "type": "notification",
+                "event": "Rejected your friend request",
+                "user": user1.name,
+                "avatar": user1.avatar,
+                "session_id": user1.session_id
+            }
+        )
+
     user1.friend_requests.remove(user2)
     db.commit()
     db.refresh(user1)
