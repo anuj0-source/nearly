@@ -255,11 +255,20 @@ async def get_partner_conversation_messages(
 
     is_online = partner_session_id in ws_manager.connections
 
+    # Determine request direction
+    # user.friend_requests = people who sent requests TO user (user is receiver)
+    # So: friend in user.friend_requests → friend sent to me → I RECEIVED a request
+    #     user in friend.friend_requests → I sent to friend → I SENT a request
+    is_request_received = friend in user.friend_requests if friend else False
+    is_request_sent = user in friend.friend_requests if friend else False
+
     return {
         "conversation_id": conversation.conversation_id,
         "partner_name": friend.name if friend else "Unknown",
         "partner_avatar": friend.avatar if friend else None,
         "is_friend": friend in user.friends if friend else False,
+        "is_request_sent": is_request_sent,
+        "is_request_received": is_request_received,
         "partner_status": "active" if is_online else "inactive",
         "messages": list(reversed(messages)),
     }

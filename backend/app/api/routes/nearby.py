@@ -130,10 +130,14 @@ async def find_nearby_peoples(
     results = db.execute(query).all()
 
     response_data = []
-    
+
+    # Build a set of IDs of people who have sent US a request
+    received_request_ids = {p.id for p in user.friend_requests}
+
     for p, distance in results:
         is_friend = p.id in user_friend_ids
-        is_request_sent = user in p.friend_requests 
+        is_request_sent = user in p.friend_requests
+        is_request_received = p.id in received_request_ids
 
         response_data.append(
             {
@@ -144,10 +148,11 @@ async def find_nearby_peoples(
                 "status": p.status,
                 "gender": p.gender,
                 "is_friend": is_friend,
-                "is_request_sent": is_request_sent
+                "is_request_sent": is_request_sent,
+                "is_request_received": is_request_received
             }
         )
 
     return {
         "nearby_peoples": response_data
-    }
+    }

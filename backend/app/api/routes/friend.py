@@ -157,22 +157,34 @@ async def accept_friend_request(
             }
         )
 
-    notification=Notification(
+    accept_notification = Notification(
         session_id=user2.id,
         type="friend_request_accepted",
         payload={
-            "user":user1.name,
-            "avatar":user1.avatar
+            "user": user1.name,
+            "avatar": user1.avatar
         },
         is_read=False,
         created_at=datetime.now()
     )
-    db.add(notification)
+    db.add(accept_notification)
+
+    # Clean up the incoming friend_request notification for the accepter (user1)
+    old_notification = db.scalar(
+        select(Notification)
+        .where(
+            Notification.session_id == user1.id,
+            Notification.type == "friend_request",
+            Notification.payload["session_id"].as_string() == friend_id
+        )
+    )
+    if old_notification:
+        db.delete(old_notification)
+
     db.commit()
-    db.refresh(notification)
-    
+
     return {
-        "message":"friend request accepted"
+        "message": "friend request accepted"
     }
 
 @router.get("/friends")
@@ -312,4 +324,103 @@ async def remove_friend(
 
     return {
         "message":"friend removed"
+    }
+
+@router.post("/cancel-request/{receiver_session_id}")
+async def cancel_request(
+    receiver_session_id : str,
+    session_id : str | None = Cookie(default=None),
+    db : Session = Depends(get_db)
+):
+
+    if not session_id:
+        raise HTTPException(
+            status_code=404,
+            detail="session not found"
+        )
+
+    if not receiver_session_id:
+        raise HTTPException(
+            status_code=404,
+            detail="receiver's session not found"
+        )
+
+    users=db.scalars(
+        select(AnonymousSession)
+        .where(
+            AnonymousSession.session_id.in_([
+                session_id,
+                receiver_session_id
+            ])
+        )
+    ).all()
+
+    sender=None
+    reciever=None
+
+    for u in users:
+        if u.session_id == receiver_session_id:
+            reciever=u
+        elif u.session_id == session_id:
+            sender=u
+
+    if not sender or not reciever:
+        raise HTTPException(
+            status_code=404,
+            detail="user not found"
+        )
+
+    from models.user import friend_requests
+    from sqlalchemy import delete
+
+    request=db.scalar(
+        select(friend_requests)
+        .where(
+            friend_requests.c.user_id == reciever.id,
+            friend_requests.c.sender_id == sender.id
+        )
+    )
+
+    if not request:
+        raise HTTPException(
+            status_code=404,
+            detail="request not found"
+        )
+
+    notification=db.scalar(
+        select(Notification)
+        .where(
+            Notification.session_id == reciever.id,
+            Notification.type == "friend_request",
+            Notification.payload["session_id"].as_string() == session_id
+        )
+    )
+
+    if notification:
+        db.delete(notification)
+        db.commit()
+
+    db.execute(
+        delete(friend_requests)
+        .where(
+            friend_requests.c.user_id == reciever.id,
+            friend_requests.c.sender_id == sender.id
+        )
+    )
+    db.commit()
+
+    if reciever.status=="active":
+        await manager.send_json(
+            receiver_session_id,
+            {
+                "type":"notification",
+                "event":"Cancelled your friend request",
+                "user":sender.name,
+                "avatar":sender.avatar,
+                "session_id":sender.session_id
+            }
+        )
+
+    return{
+        "message":"requst cancelled"
     }

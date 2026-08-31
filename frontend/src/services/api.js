@@ -52,6 +52,18 @@ export async function sendFriendRequest(friendId) {
     return res.json();
 }
 
+export async function cancelFriendRequest(receiverSessionId) {
+    const res = await fetch(`${BACKEND_URL}/api/friend/cancel-request/${receiverSessionId}`, {
+        method: "POST",
+        credentials: "include",
+    });
+    if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.detail ?? "Failed to cancel friend request");
+    }
+    return res.json();
+}
+
 export async function getConversation(partnerId) {
     const res = await fetch(`${BACKEND_URL}/api/messages/conversation/${partnerId}`, {
         credentials: "include",

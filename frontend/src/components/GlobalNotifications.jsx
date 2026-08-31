@@ -64,7 +64,7 @@ export default function GlobalNotifications() {
         e.stopPropagation();
         try {
             await fetch(`${BACKEND_URL}/api/friend/accept/${friendId}`, { method: "POST", credentials: "include" });
-            window.dispatchEvent(new CustomEvent("clear_friend_notification", { detail: { senderId: friendId } }));
+            window.dispatchEvent(new CustomEvent("clear_friend_notification", { detail: { senderId: friendId, action: 'accept' } }));
             removeToast(toastId);
         } catch (error) { console.error(error); }
     };
@@ -73,7 +73,7 @@ export default function GlobalNotifications() {
         e.stopPropagation();
         try {
             await fetch(`${BACKEND_URL}/api/friend/reject/${friendId}`, { method: "POST", credentials: "include" });
-            window.dispatchEvent(new CustomEvent("clear_friend_notification", { detail: { senderId: friendId } }));
+            window.dispatchEvent(new CustomEvent("clear_friend_notification", { detail: { senderId: friendId, action: 'reject' } }));
             removeToast(toastId);
         } catch (error) { console.error(error); }
     };
@@ -114,6 +114,12 @@ export default function GlobalNotifications() {
                         title = "Friend Removed";
                         message = `${data.user} removed you from their friends list`;
                         toastType = "friend_removed";
+                    } else if (data.event === "Cancelled your friend request" && data.session_id) {
+                        // Silently remove any pending friend_request toast from this sender
+                        setToasts((prev) => prev.filter(
+                            (t) => !(t.toastType === "friend_request" && t.senderId === data.session_id)
+                        ));
+                        return; // no new toast needed
                     }
 
                     const toast = {

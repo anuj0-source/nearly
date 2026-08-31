@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { MapPin, Navigation, MessageCircle, UserPlus, Check } from "lucide-react";
+import { MapPin, Navigation, MessageCircle, UserPlus, UserMinus, Check, X } from "lucide-react";
 import AnonymousAvatar from "../components/AnonymousAvatar";
-import { sendLocation, toggleNearby, getNearbyStatus, getNearbyPeople, sendFriendRequest, getConversation } from "../services/api";
+import { sendLocation, toggleNearby, getNearbyStatus, getNearbyPeople, sendFriendRequest, cancelFriendRequest, getConversation } from "../services/api";
+import { useWebSocket } from "../contexts/WebSocketContext";
 
 const STATUS_LABEL = {
     active: "Active",
@@ -39,6 +40,7 @@ function formatRadius(meters) {
 
 function Nearby() {
     const navigate = useNavigate();
+    const { addMessageListener } = useWebSocket();
     const [nearbyEnabled, setNearbyEnabled] = useState(false);
     const [toggling, setToggling] = useState(false);
     const [loading, setLoading] = useState(true); // true until DB status is fetched
@@ -68,6 +70,43 @@ function Nearby() {
             .catch((err) => console.warn("Could not fetch nearby status:", err.message))
             .finally(() => setLoading(false));
     }, []);
+
+    // ── Listen for live friend-request events via WebSocket ─────────────────
+    useEffect(() => {
+        if (!addMessageListener) return;
+        const handle = (event) => {
+            try {
+                const data = JSON.parse(event.data);
+                if (data.type !== "notification" || !data.session_id) return;
+
+                // Someone sent US a request — show Accept/Reject on their card
+                if (data.event === "Sent friend request") {
+                    setNearbyPeoples((prev) =>
+                        prev.map((p) =>
+                            p.session_id === data.session_id ? { ...p, is_request_received: true } : p
+                        )
+                    );
+                }
+                // Someone cancelled the request they sent us — revert to UserPlus
+                if (data.event === "Cancelled your friend request") {
+                    setNearbyPeoples((prev) =>
+                        prev.map((p) =>
+                            p.session_id === data.session_id ? { ...p, is_request_sent: false, is_request_received: false } : p
+                        )
+                    );
+                }
+                // Someone accepted our request — mark as friend
+                if (data.event === "Accepted your friend request") {
+                    setNearbyPeoples((prev) =>
+                        prev.map((p) =>
+                            p.session_id === data.session_id ? { ...p, is_friend: true, is_request_sent: false } : p
+                        )
+                    );
+                }
+            } catch { /* ignore */ }
+        };
+        return addMessageListener(handle);
+    }, [addMessageListener]);
 
     // ── Start/stop GPS watcher based on toggle ───────────────────────────────
     useEffect(() => {
@@ -228,6 +267,7 @@ function Nearby() {
                 partner_name: data.partner_name || person.name,
                 partner_avatar: data.partner_avatar || person.avatar,
                 is_friend: data.is_friend,
+                prefetchedMessages: data.messages || [],
             };
             navigate(`/chat?partner=${person.session_id}`, { state: { openConv: conv } });
         } catch (err) {
@@ -252,6 +292,64 @@ function Nearby() {
         } catch (err) {
             console.error("Failed to send friend request:", err);
             alert("Failed to send friend request. Please try again.");
+        } finally {
+            setActioningId(null);
+        }
+    }
+
+    async function handleCancelRequest(personId) {
+        if (actioningId) return;
+        setActioningId(personId);
+        try {
+            await cancelFriendRequest(personId);
+            setNearbyPeoples((prev) =>
+                prev.map((p) =>
+                    p.session_id === personId ? { ...p, is_request_sent: false } : p
+                )
+            );
+        } catch (err) {
+            console.error("Failed to cancel friend request:", err);
+            alert("Failed to cancel friend request. Please try again.");
+        } finally {
+            setActioningId(null);
+        }
+    }
+
+    async function handleAcceptRequest(personId) {
+        if (actioningId) return;
+        setActioningId(personId);
+        try {
+            const BACKEND_URL = import.meta.env.VITE_BACKEND_URL ?? "http://localhost:8000";
+            const res = await fetch(`${BACKEND_URL}/api/friend/accept/${personId}`, { method: "POST", credentials: "include" });
+            if (!res.ok) throw new Error("Failed to accept");
+            setNearbyPeoples((prev) =>
+                prev.map((p) =>
+                    p.session_id === personId ? { ...p, is_friend: true, is_request_received: false } : p
+                )
+            );
+        } catch (err) {
+            console.error("Failed to accept friend request:", err);
+            alert("Failed to accept. Please try again.");
+        } finally {
+            setActioningId(null);
+        }
+    }
+
+    async function handleRejectRequest(personId) {
+        if (actioningId) return;
+        setActioningId(personId);
+        try {
+            const BACKEND_URL = import.meta.env.VITE_BACKEND_URL ?? "http://localhost:8000";
+            const res = await fetch(`${BACKEND_URL}/api/friend/reject/${personId}`, { method: "POST", credentials: "include" });
+            if (!res.ok) throw new Error("Failed to reject");
+            setNearbyPeoples((prev) =>
+                prev.map((p) =>
+                    p.session_id === personId ? { ...p, is_request_received: false } : p
+                )
+            );
+        } catch (err) {
+            console.error("Failed to reject friend request:", err);
+            alert("Failed to reject. Please try again.");
         } finally {
             setActioningId(null);
         }
@@ -407,7 +505,8 @@ function Nearby() {
                                         {Math.round(person.distance_in_meters)}m
                                     </span>
                                     <div className="nearby-actions">
-                                        {!person.is_friend && !person.is_request_sent && (
+                                        {/* No pending request from either side — show Add Friend */}
+                                        {!person.is_friend && !person.is_request_sent && !person.is_request_received && (
                                             <button 
                                                 className="nearby-action-btn" 
                                                 aria-label="Send friend request" 
@@ -418,15 +517,40 @@ function Nearby() {
                                                 <UserPlus size={14} strokeWidth={2} />
                                             </button>
                                         )}
+                                        {/* We sent a request — show cancel */}
                                         {person.is_request_sent && !person.is_friend && (
                                             <button 
-                                                className="nearby-action-btn" 
-                                                aria-label="Request sent" 
-                                                title="Request Sent"
-                                                disabled
+                                                className="nearby-action-btn nearby-action-btn--cancel" 
+                                                aria-label="Cancel friend request" 
+                                                title="Cancel Request"
+                                                onClick={() => handleCancelRequest(person.session_id)}
+                                                disabled={actioningId === person.session_id}
                                             >
-                                                <Check size={14} strokeWidth={2} />
+                                                <UserMinus size={14} strokeWidth={2} />
                                             </button>
+                                        )}
+                                        {/* They sent us a request — show Accept + Reject */}
+                                        {person.is_request_received && !person.is_friend && (
+                                            <>
+                                                <button
+                                                    className="nearby-action-btn nearby-action-btn--accept"
+                                                    aria-label="Accept friend request"
+                                                    title="Accept"
+                                                    onClick={() => handleAcceptRequest(person.session_id)}
+                                                    disabled={actioningId === person.session_id}
+                                                >
+                                                    <Check size={14} strokeWidth={2.5} />
+                                                </button>
+                                                <button
+                                                    className="nearby-action-btn nearby-action-btn--reject"
+                                                    aria-label="Reject friend request"
+                                                    title="Reject"
+                                                    onClick={() => handleRejectRequest(person.session_id)}
+                                                    disabled={actioningId === person.session_id}
+                                                >
+                                                    <X size={14} strokeWidth={2.5} />
+                                                </button>
+                                            </>
                                         )}
                                         <button 
                                             className="nearby-action-btn primary" 

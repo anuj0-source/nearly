@@ -8,6 +8,7 @@ import {
     Send,
     Shield,
     UserPlus,
+    UserMinus,
     LogOut,
     Bell,
     Check,
@@ -779,6 +780,9 @@ function Chat() {
     const [requestSent, setRequestSent] =
         useState(false);
 
+    // 'none' | 'sent' | 'received' | 'friend'
+    const [friendStatus, setFriendStatus] = useState('none');
+
 
     // =================================================
     // ACTIVE USERS STATE
@@ -1013,6 +1017,11 @@ function Chat() {
                         is_friend: data.is_friend,
                     };
                     setActiveConv(conv);
+                    // Initialize friendStatus from freshly-fetched data
+                    if (data.is_friend) setFriendStatus('friend');
+                    else if (data.is_request_received) setFriendStatus('received');
+                    else if (data.is_request_sent) setFriendStatus('sent');
+                    else setFriendStatus('none');
 
                     const mapped = (data.messages || []).map(m => ({
                         id: String(m.id),
@@ -1201,6 +1210,34 @@ function Chat() {
 
 
     // =================================================
+    // GLOBAL NOTIFICATION EVENT LISTENER
+    // =================================================
+
+    useEffect(() => {
+        const handleClearNotification = (event) => {
+            const { senderId, action } = event.detail;
+            
+            // Check if this action corresponds to the current chat partner
+            const currentPartner = activeConvRef.current?.user2_session_id === session?.session_id
+                ? activeConvRef.current?.user1_session_id
+                : activeConvRef.current?.user2_session_id;
+
+            if (currentPartner === senderId || match?.session_id === senderId) {
+                if (action === 'accept') {
+                    setFriendStatus('friend');
+                    setActiveConv(prev => prev ? { ...prev, is_friend: true } : prev);
+                } else if (action === 'reject') {
+                    setFriendStatus('none');
+                }
+            }
+        };
+
+        window.addEventListener("clear_friend_notification", handleClearNotification);
+        return () => window.removeEventListener("clear_friend_notification", handleClearNotification);
+    }, [match?.session_id, session?.session_id]);
+
+
+    // =================================================
     // WEBSOCKET MESSAGE LISTENER
     // =================================================
 
@@ -1209,8 +1246,39 @@ function Chat() {
             try {
                 const payload = JSON.parse(event.data);
 
-                if (payload.type === "notification" && payload.event === "Sent friend request") {
+                if (payload.type === "notification" && payload.event === "Sent friend request" && payload.session_id) {
                     fetchFriendRequests();
+                    // If the person sending us a request is our active partner, show Accept/Reject
+                    const currentPartner = activeConvRef.current?.user2_session_id === session?.session_id
+                        ? activeConvRef.current?.user1_session_id
+                        : activeConvRef.current?.user2_session_id;
+                    if (currentPartner === payload.session_id ||
+                        match?.session_id === payload.session_id) {
+                        setFriendStatus('received');
+                    }
+                    return;
+                }
+
+                if (payload.type === "notification" && payload.event === "Cancelled your friend request" && payload.session_id) {
+                    const currentPartner = activeConvRef.current?.user2_session_id === session?.session_id
+                        ? activeConvRef.current?.user1_session_id
+                        : activeConvRef.current?.user2_session_id;
+                    if (currentPartner === payload.session_id ||
+                        match?.session_id === payload.session_id) {
+                        setFriendStatus('none');
+                    }
+                    return;
+                }
+
+                if (payload.type === "notification" && payload.event === "Accepted your friend request" && payload.session_id) {
+                    const currentPartner = activeConvRef.current?.user2_session_id === session?.session_id
+                        ? activeConvRef.current?.user1_session_id
+                        : activeConvRef.current?.user2_session_id;
+                    if (currentPartner === payload.session_id ||
+                        match?.session_id === payload.session_id) {
+                        setFriendStatus('friend');
+                        setActiveConv(prev => prev ? { ...prev, is_friend: true } : prev);
+                    }
                     return;
                 }
 
@@ -1676,14 +1744,14 @@ function Chat() {
 
     async function sendFriendRequest(targetId) {
         const idToRequest = typeof targetId === "string" ? targetId : match?.session_id;
-        if (!idToRequest || requestSent) return;
+        if (!idToRequest || friendStatus === 'sent' || friendStatus === 'friend') return;
         try {
             const response = await fetch(`${BACKEND_URL}/api/friend/request/${idToRequest}`, {
                 method: "POST",
                 credentials: "include",
             });
             if (response.ok) {
-                console.log("Friend request sent");
+                setFriendStatus('sent');
                 setRequestSent(true);
                 setTimeout(() => setRequestSent(false), 3000);
             } else {
@@ -1691,6 +1759,50 @@ function Chat() {
             }
         } catch (error) {
             console.error("Error sending friend request:", error);
+        }
+    }
+
+    async function cancelFriendRequestInChat(targetId) {
+        if (!targetId) return;
+        try {
+            const response = await fetch(`${BACKEND_URL}/api/friend/cancel-request/${targetId}`, {
+                method: "POST",
+                credentials: "include",
+            });
+            if (response.ok) {
+                setFriendStatus('none');
+            }
+        } catch (error) {
+            console.error("Error cancelling friend request:", error);
+        }
+    }
+
+    async function acceptFriendRequestInChat(friendId) {
+        try {
+            const response = await fetch(`${BACKEND_URL}/api/friend/accept/${friendId}`, {
+                method: "POST",
+                credentials: "include",
+            });
+            if (response.ok) {
+                setFriendStatus('friend');
+                setActiveConv(prev => prev ? { ...prev, is_friend: true } : prev);
+            }
+        } catch (error) {
+            console.error("Error accepting friend request:", error);
+        }
+    }
+
+    async function rejectFriendRequestInChat(friendId) {
+        try {
+            const response = await fetch(`${BACKEND_URL}/api/friend/reject/${friendId}`, {
+                method: "POST",
+                credentials: "include",
+            });
+            if (response.ok) {
+                setFriendStatus('none');
+            }
+        } catch (error) {
+            console.error("Error rejecting friend request:", error);
         }
     }
 
@@ -1775,6 +1887,9 @@ function Chat() {
         }
 
         setActiveConv({ ...conv, partner_status: freshStatus });
+        // Initialize friendStatus from stale conv data (will be refreshed after message fetch)
+        if (conv.is_friend) setFriendStatus('friend');
+        else setFriendStatus('none'); // will be corrected after /conversation/ fetch
 
         try {
             const res = await fetch(
@@ -2536,31 +2651,63 @@ function Chat() {
                     </div>
 
                     <div style={{ display: "flex", gap: 12 }}>
-                        {!activeConv?.is_friend && (
-                            <button
-                                className="ix-btn"
-                                type="button"
-                                aria-label={requestSent ? "Request sent" : "Add friend"}
-                                data-tooltip={requestSent ? "Request sent" : "Add friend"}
-                                onClick={() => sendFriendRequest(
-                                    activeConv.user1_session_id === session?.session_id
-                                        ? activeConv.user2_session_id
-                                        : activeConv.user1_session_id
-                                )}
-                                disabled={requestSent}
-                                style={{
-                                    transition: "all 0.3s ease",
-                                    backgroundColor: requestSent ? "var(--success-color, #22c55e)" : "transparent",
-                                    color: requestSent ? "var(--text-primary, white)" : "inherit"
-                                }}
-                            >
-                                {requestSent ? (
-                                    <Check size={22} strokeWidth={2} />
-                                ) : (
+                        {/* History conv: friend action buttons */}
+                        {!activeConv?.is_friend && friendStatus !== 'friend' && (() => {
+                            const partnerId = activeConv?.user1_session_id === session?.session_id
+                                ? activeConv?.user2_session_id
+                                : activeConv?.user1_session_id;
+                            if (friendStatus === 'received') return (
+                                <>
+                                    <button
+                                        className="ix-btn"
+                                        type="button"
+                                        aria-label="Accept friend request"
+                                        data-tooltip="Accept"
+                                        onClick={() => acceptFriendRequestInChat(partnerId)}
+                                        style={{ color: '#22c55e' }}
+                                    >
+                                        <Check size={22} strokeWidth={2} />
+                                    </button>
+                                    <button
+                                        className="ix-btn"
+                                        type="button"
+                                        aria-label="Reject friend request"
+                                        data-tooltip="Reject"
+                                        onClick={() => rejectFriendRequestInChat(partnerId)}
+                                        style={{ color: '#ef4444' }}
+                                    >
+                                        <X size={22} strokeWidth={2} />
+                                    </button>
+                                </>
+                            );
+                            if (friendStatus === 'sent') return (
+                                <button
+                                    className="ix-btn"
+                                    type="button"
+                                    aria-label="Cancel friend request"
+                                    data-tooltip="Cancel Request"
+                                    onClick={() => cancelFriendRequestInChat(partnerId)}
+                                    style={{ color: '#ef4444' }}
+                                >
+                                    <UserMinus size={22} strokeWidth={1.75} />
+                                </button>
+                            );
+                            return (
+                                <button
+                                    className="ix-btn"
+                                    type="button"
+                                    aria-label="Add friend"
+                                    data-tooltip="Add friend"
+                                    onClick={() => sendFriendRequest(
+                                        activeConv.user1_session_id === session?.session_id
+                                            ? activeConv.user2_session_id
+                                            : activeConv.user1_session_id
+                                    )}
+                                >
                                     <UserPlus size={22} strokeWidth={1.75} />
-                                )}
-                            </button>
-                        )}
+                                </button>
+                            );
+                        })()}
                     </div>
                 </header>
 
@@ -2986,35 +3133,56 @@ function Chat() {
                     }}
                 >
 
-                    {!match?.is_friend && (
-                        <button
-                            className="ix-btn"
-                            type="button"
-                            aria-label={requestSent ? "Request sent" : "Add friend"}
-                            data-tooltip={requestSent ? "Request sent" : "Add friend"}
-                            onClick={sendFriendRequest}
-                            disabled={requestSent}
-                            style={{
-                                transition: "all 0.3s ease",
-                                backgroundColor: requestSent ? "var(--success-color, #22c55e)" : "transparent",
-                                color: requestSent ? "var(--text-primary, white)" : "inherit"
-                            }}
-                        >
-
-                            {requestSent ? (
-                                <Check
-                                    size={22}
-                                    strokeWidth={2}
-                                />
-                            ) : (
-                                <UserPlus
-                                    size={22}
-                                    strokeWidth={1.75}
-                                />
-                            )}
-
-                        </button>
-                    )}
+                    {/* Match view: friend action buttons */}
+                    {!match?.is_friend && friendStatus !== 'friend' && (() => {
+                        if (friendStatus === 'received') return (
+                            <>
+                                <button
+                                    className="ix-btn"
+                                    type="button"
+                                    aria-label="Accept friend request"
+                                    data-tooltip="Accept"
+                                    onClick={() => acceptFriendRequestInChat(match?.session_id)}
+                                    style={{ color: '#22c55e' }}
+                                >
+                                    <Check size={22} strokeWidth={2} />
+                                </button>
+                                <button
+                                    className="ix-btn"
+                                    type="button"
+                                    aria-label="Reject friend request"
+                                    data-tooltip="Reject"
+                                    onClick={() => rejectFriendRequestInChat(match?.session_id)}
+                                    style={{ color: '#ef4444' }}
+                                >
+                                    <X size={22} strokeWidth={2} />
+                                </button>
+                            </>
+                        );
+                        if (friendStatus === 'sent') return (
+                            <button
+                                className="ix-btn"
+                                type="button"
+                                aria-label="Cancel friend request"
+                                data-tooltip="Cancel Request"
+                                onClick={() => cancelFriendRequestInChat(match?.session_id)}
+                                style={{ color: '#ef4444' }}
+                            >
+                                <UserMinus size={22} strokeWidth={1.75} />
+                            </button>
+                        );
+                        return (
+                            <button
+                                className="ix-btn"
+                                type="button"
+                                aria-label="Add friend"
+                                data-tooltip="Add friend"
+                                onClick={sendFriendRequest}
+                            >
+                                <UserPlus size={22} strokeWidth={1.75} />
+                            </button>
+                        );
+                    })()}
 
                     <button
                         className="ix-btn"

@@ -139,6 +139,7 @@ export default function HeaderIcons({ session }) {
             const senderId = event.detail.senderId;
             const notif = notifications.find(n => n.type === "friend_request" && n.payload?.session_id === senderId);
             if (notif) clearNotification(notif.id);
+            setFriendRequests(prev => prev.filter(req => req.session_id !== senderId));
         };
         const handleReadMessage = (event) => {
             const senderId = event.detail.senderId;
