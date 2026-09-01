@@ -400,17 +400,13 @@ async def cancel_request(
         )
 
     notification=db.scalar(
-        select(Notification)
+        delete(Notification)
         .where(
             Notification.session_id == reciever.id,
             Notification.type == "friend_request",
             Notification.payload["session_id"].as_string() == session_id
         )
     )
-
-    if notification:
-        db.delete(notification)
-        db.commit()
 
     db.execute(
         delete(friend_requests)
